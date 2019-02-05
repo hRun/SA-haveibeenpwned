@@ -26,3 +26,5 @@ Add some better handling of HTTP response code 429.
 
 Potentially set a custom user agent for HTTP requests.
 
+Add open source license.
+
