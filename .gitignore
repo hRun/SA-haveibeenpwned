@@ -1,0 +1,5 @@
+._*
+*.pyc
+
+/local/**
+/metadata/local.meta
