@@ -1,26 +1,24 @@
 #!/usr/bin/env python
 
 """ 
-    Implementation of the custom Splunk> search command "haveibeenpwned" used for \
-    querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
+    Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
     
     Author: Harun Kuessner
-    Version: 1.0
+    Version: 1.1.0
+    License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
-import base64
+from __future__ import absolute_import
+from __future__ import print_function
+from time       import sleep
+
 import datetime
 import json
-import re
-import requests
 import sys
-import logging, logging.handlers, logging.config
 
-from time import sleep
-
+import splunklib.six.moves.http_client as http_client
 import splunklib.client as client
-from   splunklib.searchcommands import \
-       dispatch, StreamingCommand, Configuration, Option, validators
+from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
 
 @Configuration()
 class hibpCommand(StreamingCommand):
@@ -35,7 +33,7 @@ class hibpCommand(StreamingCommand):
 
     ##Requirements
 
-    Install on search head.
+    Install on search head. Usage of mode=mail requires a valid API key to be provided via the app's setup screen.
 
     ##Examples
 
@@ -52,160 +50,195 @@ class hibpCommand(StreamingCommand):
     threshold = Option(
         doc='''
         **Syntax:** **threshold=***<days>*
-        **Description:** How many days to look back in tome for breaches''',
+        **Description:** How many days to look back in time for breaches''',
         require=False, default=7)
 
     def stream(self, events):
+        # Initialize variables and HTTP(S) connection
+        tracker     = 0
+        date        = datetime.datetime.now()
+        use_proxies = 0
+        api_key     = None
 
-	# Set up logging
-        logger  = logging.getLogger('haveibeenpwned')
-	handler = logging.handlers.RotatingFileHandler('/opt/splunk/var/log/splunk/send_alert_haveibeenpwned.log', \
-	                                               maxBytes=10000000, backupCount=1)
-	handler.setFormatter(logging.Formatter("%(asctime)-15s %(levelname)-5s %(message)s"))
-	logger.addHandler(handler)
-	logger.setLevel(logging.DEBUG)
-	
-	logger.info("Starting to query haveibeenpwned API.")
+        service     = client.Service(token=self.metadata.searchinfo.session_key)
+        use_proxies = service.confs["haveibeenpwned"]["settings"]["use_proxies"]
+        api_key     = service.confs["haveibeenpwned"]["settings"]["api_key"]
+        #api_key     = service.storage_passwords.list(count=-1, search="haveibeenpwned")[0].clear_password
+        
+        if api_key is not None and len(api_key) > 0:
+            headers = {'user-agent': 'splunk-app-for-hibp/1.1.0', 'hibp-api-key': '{0}'.format(api_key)}
+        else:
+            headers = {'user-agent': 'splunk-app-for-hibp/1.1.0'}
+            self.logger.warning("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail will not work.")
 
-	# Bind to current Splunk session
-	sessionKey = self.metadata.searchinfo.session_key
-	tracker    = 0
-	date       = datetime.datetime.now()
-	
-	for event in events:
-		if self.mode == "domain":
-			# Check for domain breaches	
-			url    = 'https://haveibeenpwned.com/api/v2/breaches'
-			breach = []
+        if use_proxies == 1:
+            https_proxy = service.confs["haveibeenpwned"]["settings"]["https_proxy"]
+            http_proxy  = service.confs["haveibeenpwned"]["settings"]["http_proxy"]
 
-			if tracker == 0:
-                                try:
-				        response = requests.get(url)
-                                except Exception as e:
-                                        logger.error("HTTP request failed: {0}".format(e))
-                                        return
+            try:
+                connection = http_client.HTTPSConnection('{0}'.format(https_proxy))
+                connection.set_tunnel('haveibeenpwned.com')
+            except Exception as e1:
+                self.logger.error("HTTPS proxy connection failed, falling back to HTTP: {0}".format(e))
+                connection.close()
+                try:
+                    connection = http_client.HTTPConnection('{0}'.format(http_proxy))
+                    connection.set_tunnel('haveibeenpwned.com')
+                except Exception as e2:
+                    self.logger.error("HTTP proxy connection failed, falling back to direct HTTPS connection: {0}".format(e))
+                    connection.close()
+                    try:
+                        connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+                    except Exception as e3:
+                        self.logger.error("Direct HTTPs connection failed, returning: {0}".format(e))
+                        connection.close()
+                        return
+        else:
+            try:
+                connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+            except Exception as e:
+                self.logger.error("Direct HTTPs connection failed, returning: {0}".format(e))
+                connection.close()
+                return
 
-				tracker  = 1
+        for event in events:
+            if self.mode == "domain":
+                # Check for domain breaches    
+                breach = []
 
-				if response.status_code == 200:
-					data = response.json()
-                                if response.status_code == 429:
-                                        sleep(5)
-				else:
-					data = 0
+                if tracker == 0:
+                    try:
+                        connection.request("GET", '/api/v3/breaches', headers=headers)
+                        response = connection.getresponse()
+                    except Exception as e:
+                        self.logger.error("HTTP request failed: {0}".format(e))
+                        return
 
-			if data != 0:
-				for entry in data:
-                                        if int((date - datetime.datetime.strptime(entry['AddedDate'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold) \
-                                           or not event[self.fieldnames[0]] in entry['Domain']:
-                                                pass
-                                        else:
-                                                dataclass = []
-                                                for dataclasses in entry['DataClasses']:
-                                                        dataclass.append(dataclasses.encode('utf-8'))
-
-                                                breach.append(['Title: {0}'.format(entry['Title']), \
-                                                               'Domain: {0}'.format(entry['Domain']), \
-                                                               'Date of Breach: {0}'.format(entry['BreachDate']), \
-                                                               'Date of Availability: {0}'.format(entry['AddedDate']), \
-                                                               'Breached Accounts: {0}'.format(entry['PwnCount']), \
-                                                               'Breach Description: {0}'.format(entry['Description']), \
-                                                               'Breached Data: {0}'.format(dataclass)])
-
-                                if len(breach) == 0:
-                                        event['breach'] = "No Breach"
-                                else:
-                                        event['breach'] = ""
-                                        for entry in breach:
-                                                for item in entry:
-					                event['breach'] += str(item) + "\r\n"
-                                                event['breach'] += "\r\n"
-
-		else:
-			# Check for account breaches
-			url       = 'https://haveibeenpwned.com/api/v2/breachedaccount/%s' % event[self.fieldnames[0]]
-			breach    = []
-
+                    if response.status == 200:
+                        data = response.read()
+                    if response.status == 429:
+                        sleep(5)
                         try:
-                                response  = requests.get(url)
+                            connection.request("GET", '/api/v3/breaches', headers=headers)
+                            response = connection.getresponse()
                         except Exception as e:
-                                logger.error("HTTP request failed: {0}".format(e))
-                                return
+                            self.logger.error("HTTP request failed: {0}".format(e))
+                            return
+                        
+                    tracker = 1
 
-			sleep(1.7)
-
-                        if response.status_code == 200:
-				data = response.json()
-
-				for entry in data:
-					if int((date - datetime.datetime.strptime(entry['AddedDate'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold):
-						pass
-					else:
-						dataclass = []
-						for dataclasses in entry['DataClasses']:
-							dataclass.append(dataclasses.encode('utf-8'))
-
-						breach.append(['Title: {0}'.format(entry['Title']), \
-						               'Domain: {0}'.format(entry['Domain']), \
-                                                               'Date of Breach: {0}'.format(entry['BreachDate']), \
-                                                               'Date of Availability: {0}'.format(entry['AddedDate']), \
-                                                               'Breached Data: {0}'.format(dataclass)])
-				
-				if len(breach) == 0: 
-					event['breach'] = "No Breach"
-				else:
-                                        event['breach'] = ""
-                                        for entry in breach:
-                                                for item in entry:
-                                                        event['breach'] += str(item) + "\r\n"
-                                                event['breach'] += "\r\n"
-
-                        elif response.status_code == 429:
-                                sleep(5)
-			elif response.status_code == 404:
-				event['breach'] = "No Breach"
+                if data is not None:
+                    for entry in json.loads(data.decode('utf8')):
+                        if int((date - datetime.datetime.strptime(entry['AddedDate'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold) or not event[self.fieldnames[0]] in entry['Domain']:
+                            pass
                         else:
-                                pass
+                            dataclass = []
+                            for dataclasses in entry['DataClasses']:
+                                dataclass.append(dataclasses.encode('utf-8'))
 
-			# Check for account pastes
-                        url      = 'https://haveibeenpwned.com/api/v2/pasteaccount/%s' % event[self.fieldnames[0]]
-			paste    = []
+                            breach.append(['Title: {0}'.format(entry['Title']), \
+                                           'Domain: {0}'.format(entry['Domain']), \
+                                           'Date of Breach: {0}'.format(entry['BreachDate']), \
+                                           'Date of Availability: {0}'.format(entry['AddedDate']), \
+                                           'Breached Accounts: {0}'.format(entry['PwnCount']), \
+                                           'Breach Description: {0}'.format(entry['Description']), \
+                                           'Breached Data: {0}'.format(dataclass)])
 
-                        try:
-                                response = requests.get(url)
-                        except Exception as e:
-                                logger.error("HTTP request failed: {0}".format(e))
-                                return
+                    if len(breach) == 0:
+                        event['breach'] = "No breach reported for given domain and time frame."
+                    else:
+                        event['breach'] = ""
+                        for entry in breach:
+                            for item in entry:
+                                event['breach'] += str(item) + "\r\n"
+                            event['breach'] += "\r\n"
 
-			sleep(1.7)
+            else:
+                # Check for account breaches
+                breach = []
 
-                        if response.status_code == 200:
-                                data = response.json()
+                try:
+                    connection.request("GET", '/api/v3/breachedaccount/{0}?truncateResponse=false'.format(event[self.fieldnames[0]]), headers=headers)
+                    response = connection.getresponse()
+                except Exception as e:
+                    self.logger.error("HTTP request failed: {0}".format(e))
+                    return
 
-                                for entry in data:
-                                        if int((date - datetime.datetime.strptime(entry['Date'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold):
-                                                pass
-                                        else:
-                                                paste.append(['Title: {0}'.format(entry['Title']), \
-                                                              'Source: {0}'.format(['Source']), \
-                                                              'Paste ID: {0}'.format(entry['Id'])])
+                sleep(1.7)
 
-                                if len(paste) == 0:
-                                        event['paste'] = "No Paste"
-                                else:
-                                        event['paste'] = ""
-                                        for entry in paste:
-                                                for item in entry:
-                                                        event['paste'] += str(item) + "\r\n"
-                                                event['paste'] += "\r\n"
+                if response.status == 200:
+                    data = response.read()
 
-                        elif response.status_code == 429:
-                                sleep(5)
-                        elif response.status_code == 404:
-                                event['paste'] = "No Paste"
+                    for entry in json.loads(data.decode('utf8')):
+                        if int((date - datetime.datetime.strptime(entry['AddedDate'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold):
+                            pass
                         else:
-                                pass
+                            dataclass = []
+                            for dataclasses in entry['DataClasses']:
+                                dataclass.append(dataclasses.encode('utf-8'))
 
-		yield event
+                            breach.append(['Title: {0}'.format(entry['Title']), \
+                                           'Domain: {0}'.format(entry['Domain']), \
+                                           'Date of Breach: {0}'.format(entry['BreachDate']), \
+                                           'Date of Availability: {0}'.format(entry['AddedDate']), \
+                                           'Breached Data: {0}'.format(dataclass)])
+
+                    if len(breach) == 0: 
+                        event['breach'] = "No breach reported for given account and time frame."
+                    else:
+                        event['breach'] = ""
+                        for entry in breach:
+                            for item in entry:
+                                event['breach'] += str(item) + "\r\n"
+                            event['breach'] += "\r\n"
+
+                elif response.status == 429:
+                    sleep(5)
+                elif response.status == 404:
+                    event['breach'] = "No breach reported for given account and time frame."
+                else:
+                    pass
+    
+                # Check for account pastes
+                paste = []
+    
+                try:
+                    connection.request("GET", '/api/v2/pasteaccount/{0}'.format(event[self.fieldnames[0]]), headers=headers)
+                    response = connection.getresponse()
+                except Exception as e:
+                    self.logger.error("HTTP request failed: {0}".format(e))
+                    return
+
+                sleep(1.7)
+
+                if response.status == 200:
+                    data = response.read()
+
+                    for entry in json.loads(data.decode('utf8')):
+                        if int((date - datetime.datetime.strptime(entry['Date'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold):
+                            pass
+                        else:
+                            paste.append(['Title: {0}'.format(entry['Title']), \
+                                          'Source: {0}'.format(['Source']), \
+                                          'Paste ID: {0}'.format(entry['Id'])])
+
+                    if len(paste) == 0:
+                        event['paste'] = "No paste reported for given account and time frame."
+                    else:
+                        event['paste'] = ""
+                        for entry in paste:
+                            for item in entry:
+                                event['paste'] += str(item) + "\r\n"
+                            event['paste'] += "\r\n"
+
+                elif response.status == 429:
+                    sleep(5)
+                elif response.status == 404:
+                    event['paste'] = "No paste reported for given account and time frame."
+                else:
+                    pass
+
+            connection.close()
+            yield event
 
 dispatch(hibpCommand, sys.argv, sys.stdin, sys.stdout, __name__)

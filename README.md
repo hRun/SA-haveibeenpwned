@@ -1,30 +1,39 @@
 # SA-haveibeenpwned
 
-A Splunk® add-on providing a custom search command _haveibeenpwned_ to query Troy Hunt's haveibeenpwned API (https://haveibeenpwned.com/api/v2/) for known breaches of your (company's) domains or your friend's/family's/enemies'/hardly distantly related someone's/employee's/colleague's mail adresses.
+A Splunk® add-on providing a custom search command _haveibeenpwned_ to query Troy Hunt's haveibeenpwned API (https://haveibeenpwned.com/api/v3/) for known breaches of your (company's) domains or your friends'/family's/enemies'/hardly distantly related someone's/employees'/colleagues' mail adresses.
 
-Please respect people's privacy and adhere to the service's acceptable use (https://haveibeenpwned.com/API/v2#AcceptableUse).
+Please respect people's privacy and adhere to the service's acceptable use (https://haveibeenpwned.com/API/v3#AcceptableUse). I tried respecting the limits posed on the API's use in the command's source code.
 
-I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features. I tried respecting the limits posed on the API's use in the command's source code.
+I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
-Tested on Splunk Enterprise 7.1.3.
+Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 7.3.5 and 8.0.2.1.
+
+Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 ## Installation
 
-Just unpack to $SPLUNK_HOME/etc/apps on your Splunk search head and restart the instance. Use the deployer in a distributed environment.
+Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart the instance. Use the deployer in a distributed environment.
 
 ## Requirements
 
-Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v2/\*.
+Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/\*.
+
+Unfortunately parts of the HIBP API now require an API key which you can obtain here: https://haveibeenpwned.com/API/Key. Specify your API key via the app's setup screen to be able to use _mode=mail_. _mode=domain_ will work without an API key.
+
+## Usage
+
+Use as a search command like so:
+
+_search index=example | table email | haveibeenpwned [mode=mail|domain] [threshold=<days>] <field-list>_
+
+_mode_: Control whether to query for breaches regarding one or multiple domains or specific mail addresses. Default: mail.
+_threshold_: Set how many days to look back for breaches. Default: 7 days.
 
 ## TODO / Known Issues
-
-Add a proxy configuration page.
 
 Add some more error handling.
 
 Add some better handling of HTTP response code 429.
 
-Potentially set a custom user agent for HTTP requests.
-
-Add open source license.
+Potentially add a mode to query the passwords API. As ßpassword hashes should not be stored in SPlunk this should not be a valid use case.
 
