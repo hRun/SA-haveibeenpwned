@@ -16,7 +16,7 @@ Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart th
 
 ## Requirements
 
-Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/\*.
+Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/*.
 
 Unfortunately parts of the HIBP API now require an API key which you can obtain here: https://haveibeenpwned.com/API/Key. Specify your API key via the app's setup screen to be able to use _mode=mail_. _mode=domain_ will work without an API key.
 
@@ -24,16 +24,16 @@ Unfortunately parts of the HIBP API now require an API key which you can obtain 
 
 Use as a search command like so:
 
-_search index=example | table email | haveibeenpwned [mode=mail|domain] [threshold=<days>] <field-list>_
+_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] \<field-list>_
 
 _mode_: Control whether to query for breaches regarding one or multiple domains or specific mail addresses. Default: mail.
 _threshold_: Set how many days to look back for breaches. Default: 7 days.
 
 ## TODO / Known Issues
 
-Add some more error handling.
+* Add some more error handling.
 
-Add some better handling of HTTP response code 429.
+* Add some better handling of HTTP response code 429.
 
-Potentially add a mode to query the passwords API. As ßpassword hashes should not be stored in SPlunk this should not be a valid use case.
+* Potentially add a mode to query the passwords API. As password hashes should not be stored in Splunk this should not be a valid use case.
 
