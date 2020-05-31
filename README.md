@@ -14,6 +14,8 @@ Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart the instance. Use the deployer in a distributed environment.
 
+Set _python.version=python2_ or _python.version=python3_ in _commands.conf_ if you would like to explicitly specify the Python version to use. Otherwise this will be determined by your instance's global settings.
+
 ## Requirements
 
 Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/*.
