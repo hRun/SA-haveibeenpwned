@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
     
     Author: Harun Kuessner
-    Version: 1.2.0
+    Version: 1.2.1
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
@@ -19,9 +19,11 @@ import logging
 import json
 import sys
 
+import splunklib.client                as client
 import splunklib.six.moves.http_client as http_client
-import splunklib.client as client
-from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
+
+from splunklib.six.moves.urllib import parse as url_parse
+from splunklib.searchcommands   import dispatch, StreamingCommand, Configuration, Option, validators
 
 @Configuration()
 class hibpCommand(StreamingCommand):
@@ -97,26 +99,15 @@ class hibpCommand(StreamingCommand):
                 connection = http_client.HTTPSConnection('{0}'.format(https_proxy))
                 connection.set_tunnel('haveibeenpwned.com')
             except Exception as e1:
-                logger.error("HTTPS proxy connection failed, falling back to HTTP proxy: {0}".format(e1))
                 connection.close()
+                logger.error("HTTPS proxy connection failed, falling back to HTTP proxy: {0}".format(e1))
                 try:
                     connection = http_client.HTTPConnection('{0}'.format(http_proxy))
                     connection.set_tunnel('haveibeenpwned.com')
                 except Exception as e2:
-                    logger.error("HTTP proxy connection failed, falling back to direct HTTPS connection: {0}".format(e2))
                     connection.close()
-                    try:
-                        connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-                    except Exception as e3:
-                        connection.close()
-                        logger.error("Direct HTTPS connection failed: {0}".format(e3))
-                        raise RuntimeWarning("Proxy connections failed, fallback to direct HTTPS connection failed, please check your server's internet connection.")
-        else:
-            try:
-                connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-            except Exception as e:
-                connection.close()
-                raise RuntimeWarning("HTTPS connection failed, please check your server's internet connection: {0}".format(e))
+                    logger.error("HTTP proxy connection failed, falling back to direct HTTPS connection: {0}".format(e2))
+                    raise RuntimeWarning("Proxy connection attempts failed: {}, {}".format(e1, e2))
 
         for event in events:
             # Check for domain breaches
@@ -126,9 +117,12 @@ class hibpCommand(StreamingCommand):
                 # Always do a single request for all breaches only, independent of how many domains to check for
                 if tracker == 0:
                     try:
+                        if not use_proxies == 1:
+                            connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
                         connection.request("GET", '/api/v3/breaches', headers=headers)
                         response = connection.getresponse()
                     except Exception as e:
+                        connection.close()
                         logger.error("HTTPS request failed: {0}".format(e))
                         raise RuntimeWarning("HTTPS request failed: {0}".format(e))
 
@@ -139,6 +133,8 @@ class hibpCommand(StreamingCommand):
                     if response.status == 429:
                         sleep(3.2)
                         try:
+                            if not use_proxies == 1:
+                                connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
                             connection.request("GET", '/api/v3/breaches', headers=headers)
                             response = connection.getresponse()
                             if response.status == 200:
@@ -146,10 +142,12 @@ class hibpCommand(StreamingCommand):
                             else:
                                 raise Exception
                         except Exception as e:
+                            connection.close()
                             logger.error("HTTPS request failed: {0}".format(e))
                             raise RuntimeWarning("HTTPS request failed: {0}".format(e))
-                        
+
                     tracker = 1
+                    connection.close()
 
                 if data is not None:
                     for entry in json.loads(data.decode('utf8')):
@@ -187,13 +185,14 @@ class hibpCommand(StreamingCommand):
                     raise RuntimeWarning("Usage of mode=mail requires a valid haveibeenpwneed.com API key to be provided via the app's setup screen.")
 
                 try:
-                    connection.request("GET", '/api/v3/breachedaccount/{0}?truncateResponse=false'.format(event[self.fieldnames[0]]), headers=headers)
+                    if not use_proxies == 1:
+                        connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+                    connection.request("GET", '/api/v3/breachedaccount/{0}?truncateResponse=false'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
                     response = connection.getresponse()
                 except Exception as e:
+                    connection.close()
                     logger.error("HTTPS request failed: {0}".format(e))
                     return # Return, don't throw an error, as that would cancel the search for all other events
-
-                sleep(1.7) # Wait to not exceed rate limit
 
                 if response.status == 200:
                     data = response.read()
@@ -228,14 +227,19 @@ class hibpCommand(StreamingCommand):
                 else:
                     pass
 
+                if not use_proxies == 1:
+                    connection.close()
+                sleep(1.7) # Wait before next request to not exceed rate limit
+
                 try:
-                    connection.request("GET", '/api/v3/pasteaccount/{0}'.format(event[self.fieldnames[0]]), headers=headers)
+                    if not use_proxies == 1:
+                        connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+                    connection.request("GET", '/api/v3/pasteaccount/{0}'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
                     response = connection.getresponse()
                 except Exception as e:
+                    connection.close()
                     logger.error("HTTPS request failed: {0}".format(e))
                     return # Return, don't throw an error, as that would cancel the search for all other events
-
-                sleep(1.7) # Wait to not exceed rate limit
 
                 if response.status == 200:
                     data = response.read()
@@ -265,7 +269,13 @@ class hibpCommand(StreamingCommand):
                 else:
                     pass
 
+                if not use_proxies == 1:
+                    connection.close()
+                sleep(1.7) # Wait before next request to not exceed rate limit
+
             yield event
-        connection.close()
+
+        if use_proxies == 1:
+            connection.close()
 
 dispatch(hibpCommand, sys.argv, sys.stdin, sys.stdout, __name__)

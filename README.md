@@ -36,6 +36,12 @@ Expect the search to take ~ 2 seconds per mail address when using mode=mail due 
 
 ## History
 
+### v1.2.1
+
+* Better connection state handling and URL encoding
+
+* Updated to Splunklib 1.6.14
+
 ### v1.2.0
 
 * Overall enhancements and bug fixes
