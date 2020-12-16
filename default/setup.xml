@@ -4,25 +4,25 @@
             <label>haveibeenpwned.com API Key:</label>
             <type>password</type>
         </input>
-	</block>-->
+    </block>-->
     <block title="API Key Configuration" endpoint="configs/conf-haveibeenpwned" entity="settings">
-	    <text>Providing an API key is optional, but by not doing so you won't be able to use mode=mail.</text>
+        <text>Specifying an API key is optional. By not doing so mode="mail" won't work.</text>
         <input field="api_key">
-            <label>haveibeenpwned.com API Key:</label>
+            <label>haveibeenpwned.com API Key</label>
             <type>text</type>
         </input>
-	</block>
-	<block title="Proxy Configuration" endpoint="configs/conf-haveibeenpwned" entity="settings">
+    </block>
+    <block title="Proxy Configuration" endpoint="configs/conf-haveibeenpwned" entity="settings">
         <input field="use_proxies">
             <label>Use Proxy</label>
             <type>bool</type>
         </input>
         <input field="https_proxy">
-            <label>HTTPS Proxy Address (&lt;proxy_address&gt;:&lt;port&gt;):</label>
+            <label>HTTPS Proxy URL</label>
             <type>text</type>
         </input>
         <input field="http_proxy">
-            <label>HTTP Proxy Address (&lt;proxy_address&gt;:&lt;port&gt;):</label>
+            <label>HTTP Proxy URL</label>
             <type>text</type>
         </input>
     </block>

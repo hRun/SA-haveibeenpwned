@@ -2,7 +2,7 @@
 
 A Splunk® add-on providing a custom search command _haveibeenpwned_ to query Troy Hunt's haveibeenpwned API (https://haveibeenpwned.com/api/v3/) for known breaches of your (company's) domains or your friends'/family's/enemies'/hardly distantly related someone's/employees'/colleagues' mail adresses.
 
-Please respect people's privacy and adhere to the service's acceptable use (https://haveibeenpwned.com/API/v3#AcceptableUse). I tried respecting the limits posed on the API's use in the command's source code.
+Please respect people's privacy and adhere to the service's acceptable use (https://haveibeenpwned.com/API/v3#AcceptableUse). I tried respecting the limits posed on the API's use in the command's source code, which is why you'll have to have a little patience when querying for large amounts of mail addresses.
 
 I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
@@ -29,13 +29,19 @@ Use as a search command like so:
 _search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] \<field-list>_
 
 _mode_: Control whether to query for breaches regarding one or multiple domains or specific mail addresses. Default: mail.
+
 _threshold_: Set how many days to look back for breaches. Default: 7 days.
+
+Expect the search to take ~ 2 seconds per mail address when using mode=mail due to the API's acceptable use. Do not attempt to spam the search as it will only degrade the performance further. 
+
+## History
+
+### v1.2.0
+
+* Overall enhancements and bug fixes
+
+* Implemented better sanity checks and error handling
 
 ## TODO / Known Issues
 
-* Add some more error handling.
-
-* Add some better handling of HTTP response code 429.
-
 * Potentially add a mode to query the passwords API. As password hashes should not be stored in Splunk this should not be a valid use case.
-
