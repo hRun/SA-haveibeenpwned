@@ -26,7 +26,7 @@ Unfortunately parts of the HIBP API now require an API key which you can obtain 
 
 Use as a search command like so:
 
-_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] [mode=\<all|dated|none>] \<field-list>_
+_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] [pastes=\<all|dated|none>] \<field-list>_
 
 _mode_: Control whether to query for breaches regarding one or multiple domains or specific mail addresses. Default: mail.
 
