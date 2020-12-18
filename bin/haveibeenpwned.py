@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
     
     Author: Harun Kuessner
-    Version: 1.2.1
+    Version: 1.2.2
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
@@ -30,7 +30,7 @@ class hibpCommand(StreamingCommand):
     """ 
     ##Syntax
 
-    haveibeenpwned [mode=mail|domain] [threshold=<days>] <field-list>
+    haveibeenpwned [mode=mail|domain] [threshold=<days>] [pastes=all|dated|none] <field-list>
 
     ##Description
     
@@ -49,7 +49,7 @@ class hibpCommand(StreamingCommand):
     mode = Option(
         doc='''
         **Syntax:** **mode=***mail|domain*
-        **Description:** query for mail address or domain breach''',
+        **Description:** Whether to query for mail address or domain breach''',
         require=False, default="mail")
 
     threshold = Option(
@@ -58,10 +58,18 @@ class hibpCommand(StreamingCommand):
         **Description:** How many days to look back in time for breaches''',
         require=False, default=7)
 
+    pastes = Option(
+        doc='''
+        **Syntax:** **pastes=***all|dated|none*
+        **Description:** Whether to query for account pastes or not or only those with a timestamp when using mode=mail''',
+        require=False, default="dated")
+
     def stream(self, events):
         # Stop execution on invalid option values
         if not self.mode in ['domain', 'mail']:
             raise RuntimeWarning('Invalid value for option "mode" specified: "{0}"'.format(self.mode))
+        if self.mode == 'domain' and not self.pastes in ['all', 'dated', 'none']:
+            raise RuntimeWarning('Invalid value for option "pastes" specified: "{0}"'.format(self.pastes))
         try:
             int(self.threshold)
         except:
@@ -184,6 +192,7 @@ class hibpCommand(StreamingCommand):
                 if api_key is None or len(api_key) < 1:
                     raise RuntimeWarning("Usage of mode=mail requires a valid haveibeenpwneed.com API key to be provided via the app's setup screen.")
 
+                # Check for account breaches
                 try:
                     if not use_proxies == 1:
                         connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
@@ -231,47 +240,57 @@ class hibpCommand(StreamingCommand):
                     connection.close()
                 sleep(1.7) # Wait before next request to not exceed rate limit
 
-                try:
-                    if not use_proxies == 1:
-                        connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-                    connection.request("GET", '/api/v3/pasteaccount/{0}'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
-                    response = connection.getresponse()
-                except Exception as e:
-                    connection.close()
-                    logger.error("HTTPS request failed: {0}".format(e))
-                    return # Return, don't throw an error, as that would cancel the search for all other events
+                # Check for account pastes
+                if self.pastes in ['all', 'dated']:
+                    try:
+                        if not use_proxies == 1:
+                            connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+                        connection.request("GET", '/api/v3/pasteaccount/{0}'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
+                        response = connection.getresponse()
+                    except Exception as e:
+                        connection.close()
+                        logger.error("HTTPS request failed: {0}".format(e))
+                        return # Return, don't throw an error, as that would cancel the search for all other events
 
-                if response.status == 200:
-                    data = response.read()
+                    if response.status == 200:
+                        data = response.read()
 
-                    for entry in json.loads(data.decode('utf8')):
-                        if int((date - datetime.datetime.strptime(entry['Date'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold):
-                            pass
+                        for entry in json.loads(data.decode('utf8')):
+                            try: # Handle pastes without title
+                                str(entry['Title'])
+                            except:
+                                entry['Title'] = "N/A"
+
+                            if self.pastes == 'all' and not entry['Date']: # Handle pastes without timestamp
+                                entry['Date'] = "N/A"
+
+                            if entry['Date'] and (entry['Date'] == "N/A" or int((date - datetime.datetime.strptime(entry['Date'], '%Y-%m-%dT%H:%M:%SZ')).days) <= int(self.threshold)):
+                                paste.append(['Title: {0}'.format(entry['Title']), \
+                                              'Source: {0}'.format(entry['Source']), \
+                                              'Paste ID: {0}'.format(entry['Id']), \
+                                              'Date: {0}'.format(entry['Date'])])
+                            else:
+                                pass
+
+                        if len(paste) == 0:
+                            event['paste'] = "No paste reported for given account and time frame."
                         else:
-                            paste.append(['Title: {0}'.format(entry['Title']), \
-                                          'Source: {0}'.format(['Source']), \
-                                          'Paste ID: {0}'.format(entry['Id']),
-                                          'Date: {0}'.format(entry['Date'])])
+                            event['paste'] = ""
+                            for entry in paste:
+                                for item in entry:
+                                    event['paste'] += str(item) + "\r\n"
+                                event['paste'] += "\r\n"
 
-                    if len(paste) == 0:
+                    elif response.status == 429:
+                        sleep(3.2)
+                    elif response.status == 404:
                         event['paste'] = "No paste reported for given account and time frame."
                     else:
-                        event['paste'] = ""
-                        for entry in paste:
-                            for item in entry:
-                                event['paste'] += str(item) + "\r\n"
-                            event['paste'] += "\r\n"
+                        pass
 
-                elif response.status == 429:
-                    sleep(3.2)
-                elif response.status == 404:
-                    event['paste'] = "No paste reported for given account and time frame."
-                else:
-                    pass
-
-                if not use_proxies == 1:
-                    connection.close()
-                sleep(1.7) # Wait before next request to not exceed rate limit
+                    if not use_proxies == 1:
+                        connection.close()
+                    sleep(1.7) # Wait before next request to not exceed rate limit
 
             yield event
 

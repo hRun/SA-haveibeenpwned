@@ -26,15 +26,23 @@ Unfortunately parts of the HIBP API now require an API key which you can obtain 
 
 Use as a search command like so:
 
-_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] \<field-list>_
+_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] [mode=\<all|dated|none>] \<field-list>_
 
 _mode_: Control whether to query for breaches regarding one or multiple domains or specific mail addresses. Default: mail.
 
 _threshold_: Set how many days to look back for breaches. Default: 7 days.
 
+_pastes_: Control whether to additionally query for account pastes or not or only those with a timestamp when using mode=mail. Default: dated.
+
 Expect the search to take ~ 2 seconds per mail address when using mode=mail due to the API's acceptable use. Do not attempt to spam the search as it will only degrade the performance further. 
 
 ## History
+
+### v1.2.2
+
+* Fixed a bug where the Splunk search would fail if a paste was found for an account but does not return a title or date
+
+* Add option to control whether to report account pastes or not or just the ones with a timestamp
 
 ### v1.2.1
 
