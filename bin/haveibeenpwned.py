@@ -68,7 +68,7 @@ class hibpCommand(StreamingCommand):
         # Stop execution on invalid option values
         if not self.mode in ['domain', 'mail']:
             raise RuntimeWarning('Invalid value for option "mode" specified: "{0}"'.format(self.mode))
-        if self.mode == 'domain' and not self.pastes in ['all', 'dated', 'none']:
+        if self.mode == 'mail' and not self.pastes in ['all', 'dated', 'none']:
             raise RuntimeWarning('Invalid value for option "pastes" specified: "{0}"'.format(self.pastes))
         try:
             int(self.threshold)
