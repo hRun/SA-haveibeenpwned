@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-""" 
+"""
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
-    
+
     Author: Harun Kuessner
     Version: 1.2.2
     License: http://www.apache.org/licenses/LICENSE-2.0
@@ -27,13 +27,13 @@ from splunklib.searchcommands   import dispatch, StreamingCommand, Configuration
 
 @Configuration()
 class hibpCommand(StreamingCommand):
-    """ 
+    """
     ##Syntax
 
     haveibeenpwned [mode=mail|domain] [threshold=<days>] [pastes=all|dated|none] <field-list>
 
     ##Description
-    
+
     Query haveibeenpwned.com for leaks affecting your assets.
 
     ##Requirements
@@ -89,9 +89,11 @@ class hibpCommand(StreamingCommand):
         api_key     = None
 
         service     = client.Service(token=self.metadata.searchinfo.session_key)
-        use_proxies = int(service.confs["haveibeenpwned"]["settings"]["use_proxies"])
-        api_key     = service.confs["haveibeenpwned"]["settings"]["api_key"]
-        #api_key     = service.storage_passwords.list(count=-1, search="haveibeenpwned")[0].clear_password
+        use_proxies = int(service.confs["sa_haveibeenpwned_settings"]["proxy"]["use_proxies"])
+        storage_passwords   = service.storage_passwords
+        for storage_password in storage_passwords:
+            if storage_password.realm == "__REST_CREDENTIAL__#SA-haveibeenpwned#configs/conf-sa_haveibeenpwned_settings" and storage_password.username == "additional_parameters``splunk_cred_sep``1":
+                api_key = json.loads(storage_password.clear_password)['api_key']
 
         if api_key is not None and len(api_key) > 0:
             headers = {'user-agent': 'splunk-app-for-hibp/1.2.0', 'hibp-api-key': '{0}'.format(api_key)}
@@ -100,8 +102,8 @@ class hibpCommand(StreamingCommand):
             logger.info("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail will not work.")
 
         if use_proxies == 1:
-            https_proxy = service.confs["haveibeenpwned"]["settings"]["https_proxy"].split('//')[-1].rstrip('/')
-            http_proxy  = service.confs["haveibeenpwned"]["settings"]["http_proxy"].split('//')[-1].rstrip('/')
+            https_proxy = service.confs["sa_haveibeenpwned_settings"]["proxy"]["https_proxy"].split('//')[-1].rstrip('/')
+            http_proxy  = service.confs["sa_haveibeenpwned_settings"]["proxy"]["http_proxy"].split('//')[-1].rstrip('/')
 
             try:
                 connection = http_client.HTTPSConnection('{0}'.format(https_proxy))
@@ -220,7 +222,7 @@ class hibpCommand(StreamingCommand):
                                            'Date of Availability: {0}'.format(entry['AddedDate']), \
                                            'Breached Data: {0}'.format(', '.join(dataclass))])
 
-                    if len(breach) == 0: 
+                    if len(breach) == 0:
                         event['breach'] = "No breach reported for given account and time frame."
                     else:
                         event['breach'] = ""

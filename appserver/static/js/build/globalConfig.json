@@ -1,0 +1,78 @@
+{
+    "meta": {
+        "name": "SA-haveibeenpwned",
+        "displayName": "Haveibeenpwned Add-on for Splunk",
+        "version": "1.2.2",
+        "apiVersion": "3.0.0",
+        "restRoot": "SA_haveibeenpwned"
+    },
+    "pages": {
+        "configuration": {
+            "title": "Configuration",
+            "description": "Set up the haveibeenpwned search command",
+            "tabs": [
+              {
+                  "name": "additional_parameters",
+                  "title": "Add-on Settings",
+                  "entity": [
+                      {
+                          "field": "api_key",
+                          "label": "API Key",
+                          "type": "text",
+                          "help": "Retrieve an API key from https://haveibeenpwned.com/API/Key",
+                          "required": true,
+                          "defaultValue": "",
+                          "encrypted": true,
+                          "validators": [
+                              {
+                                  "type": "string",
+                                  "minLength": 0,
+                                  "maxLength": 8192,
+                                  "errorMsg": "Max length of password is 8192"
+                              }
+                          ]
+                      }
+                  ]
+              },
+                {
+                    "name": "proxy",
+                    "title": "Proxy",
+                    "entity": [
+                        {
+                            "field": "use_proxies",
+                            "label": "Enable",
+                            "type": "checkbox"
+                        },
+                        {
+                            "field": "http_proxy",
+                            "label": "HTTP proxy",
+                            "type": "text",
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "minLength": 0,
+                                    "maxLength": 4096,
+                                    "errorMsg": "Max host length is 4096"
+                                }
+                            ]
+                        },
+                        {
+                            "field": "https_proxy",
+                            "label": "HTTPS proxy",
+                            "type": "text",
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "minLength": 0,
+                                    "maxLength": 4096,
+                                    "errorMsg": "Max host length is 4096"
+                                }
+                            ]
+                        }
+                    ]
+                }
+
+            ]
+        }
+    }
+}
