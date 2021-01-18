@@ -15,21 +15,14 @@ util.remove_http_proxy_env_vars()
 
 fields_proxy = [
     field.RestField(
-        'proxy_enabled',
+        'use_proxies',
         required=False,
         encrypted=False,
         default=None,
         validator=None
     ), 
     field.RestField(
-        'proxy_type',
-        required=False,
-        encrypted=False,
-        default='http',
-        validator=None
-    ), 
-    field.RestField(
-        'proxy_url',
+        'http_proxy',
         required=False,
         encrypted=False,
         default=None,
@@ -39,42 +32,15 @@ fields_proxy = [
         )
     ), 
     field.RestField(
-        'proxy_port',
-        required=False,
-        encrypted=False,
-        default=None,
-        validator=validator.Number(
-            min_val=1, 
-            max_val=65535, 
-        )
-    ), 
-    field.RestField(
-        'proxy_username',
+        'https_proxy',
         required=False,
         encrypted=False,
         default=None,
         validator=validator.String(
             min_len=0, 
-            max_len=50, 
+            max_len=4096, 
         )
-    ), 
-    field.RestField(
-        'proxy_password',
-        required=False,
-        encrypted=True,
-        default=None,
-        validator=validator.String(
-            min_len=0, 
-            max_len=8192, 
-        )
-    ), 
-    field.RestField(
-        'proxy_rdns',
-        required=False,
-        encrypted=False,
-        default=None,
-        validator=None
-    )
+    ) 
 ]
 model_proxy = RestModel(fields_proxy, name='proxy')
 

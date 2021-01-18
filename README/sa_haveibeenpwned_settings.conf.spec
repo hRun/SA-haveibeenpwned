@@ -1,11 +1,7 @@
 [proxy]
-proxy_enabled = 
-proxy_type = 
-proxy_url = 
-proxy_port = 
-proxy_username = 
-proxy_password = 
-proxy_rdns = 
+use_proxies =
+http_proxy =
+https_proxy =
 
 [additional_parameters]
 api_key = 
