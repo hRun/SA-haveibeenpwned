@@ -14,13 +14,15 @@ Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart the instance. Use the deployer in a distributed environment.
 
-*Important note on updating to add-on version 2.x.x:* When updating from add-on version 1.x.x to 2.x.x, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
+**Important note on updating to add-on version 2.x.x:** 
+
+When updating from add-on version 1.x.x to 2.x.x, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
 
 Set _python.version=python2_ or _python.version=python3_ in _commands.conf_ if you would like to explicitly specify the Python version to use. Otherwise this will be determined by your instance's global settings. Set _python.version=python2_ in _restmap.conf_ if you experience issues with the app's configuration page on older Splunk instances.
 
 ## Requirements & Setup
 
-Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/\*. Configure proxies via the app's configuration page if required.
+Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/*. Configure proxies via the app's configuration page if required.
 
 Unfortunately parts of the HIBP API now require an API key which you can obtain here: https://haveibeenpwned.com/API/Key. Specify your API key via the app's configuration page to be able to use _mode=mail_. _mode=domain_ will work without an API key.
 
