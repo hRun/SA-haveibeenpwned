@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
 
     Author: Harun Kuessner
-    Version: 1.2.2
+    Version: 2.0.0
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
@@ -83,41 +83,55 @@ class hibpCommand(StreamingCommand):
         logger.setLevel(logging.DEBUG)
 
         # Initialize variables and HTTPS connection
-        tracker     = 0
-        date        = datetime.datetime.now()
-        use_proxies = 0
-        api_key     = None
+        tracker                              = 0
+        use_proxies, https_proxy, http_proxy = 0, None, None
+        api_key                              = None
+        date                                 = datetime.datetime.now()
+        service                              = client.Service(token=self.metadata.searchinfo.session_key)
+        use_proxies                          = int(service.confs["sa_haveibeenpwned_settings"]["proxy"]["use_proxies"])
+        storage_passwords                    = service.storage_passwords
 
-        service     = client.Service(token=self.metadata.searchinfo.session_key)
-        use_proxies = int(service.confs["sa_haveibeenpwned_settings"]["proxy"]["use_proxies"])
-        storage_passwords   = service.storage_passwords
         for storage_password in storage_passwords:
             if storage_password.realm == "__REST_CREDENTIAL__#SA-haveibeenpwned#configs/conf-sa_haveibeenpwned_settings" and storage_password.username == "additional_parameters``splunk_cred_sep``1":
                 api_key = json.loads(storage_password.clear_password)['api_key']
 
-        if api_key is not None and len(api_key) > 0:
-            headers = {'user-agent': 'splunk-app-for-hibp/1.2.0', 'hibp-api-key': '{0}'.format(api_key)}
+        if api_key is not None and len(api_key) >= 32:
+            headers = {'user-agent': 'splunk-app-for-hibp/2.0.0', 'hibp-api-key': '{0}'.format(api_key)}
         else:
-            headers = {'user-agent': 'splunk-app-for-hibp/1.2.0'}
+            headers = {'user-agent': 'splunk-app-for-hibp/2.0.0'}
             logger.info("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail will not work.")
 
         if use_proxies == 1:
-            https_proxy = service.confs["sa_haveibeenpwned_settings"]["proxy"]["https_proxy"].split('//')[-1].rstrip('/')
-            http_proxy  = service.confs["sa_haveibeenpwned_settings"]["proxy"]["http_proxy"].split('//')[-1].rstrip('/')
+            try:
+                https_proxy = service.confs["sa_haveibeenpwned_settings"]["proxy"]["https_proxy"].split('//')[-1].rstrip('/')
+            except:
+                pass
+            try:
+                http_proxy  = service.confs["sa_haveibeenpwned_settings"]["proxy"]["http_proxy"].split('//')[-1].rstrip('/')
+            except:
+                pass
+
+            if https_proxy == None and http_proxy == None:
+                logger.error("Proxy usage enabled, but no proxy addresses provided.")
+                raise RuntimeWarning("When enabling proxy use, at least one proxy address needs to be set.")
 
             try:
                 connection = http_client.HTTPSConnection('{0}'.format(https_proxy))
-                connection.set_tunnel('haveibeenpwned.com')
+                connection.set_tunnel('haveibeenpwned.com', port=443)
+                connection.request("HEAD", '/api/v3', headers=headers)
+                connection.getresponse()
             except Exception as e1:
                 connection.close()
                 logger.error("HTTPS proxy connection failed, falling back to HTTP proxy: {0}".format(e1))
                 try:
-                    connection = http_client.HTTPConnection('{0}'.format(http_proxy))
-                    connection.set_tunnel('haveibeenpwned.com')
+                    connection = http_client.HTTPSConnection('{0}'.format(http_proxy))
+                    connection.set_tunnel('haveibeenpwned.com', port=443)
+                    connection.request("HEAD", '/api/v3', headers=headers)
+                    connection.getresponse()
                 except Exception as e2:
                     connection.close()
-                    logger.error("HTTP proxy connection failed, falling back to direct HTTPS connection: {0}".format(e2))
-                    raise RuntimeWarning("Proxy connection attempts failed: {}, {}".format(e1, e2))
+                    logger.error("HTTP proxy connection failed: {0}".format(e2))
+                    raise RuntimeWarning("Proxy connection attempts failed, please check your configuration and connectivity: {}, {}".format(e1, e2))
 
         for event in events:
             # Check for domain breaches
@@ -191,7 +205,7 @@ class hibpCommand(StreamingCommand):
                 paste  = []
 
                 # Only proceed if an API key was set up
-                if api_key is None or len(api_key) < 1:
+                if api_key is None or len(api_key) < 32:
                     raise RuntimeWarning("Usage of mode=mail requires a valid haveibeenpwneed.com API key to be provided via the app's setup screen.")
 
                 # Check for account breaches
