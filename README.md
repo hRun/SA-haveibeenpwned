@@ -18,6 +18,8 @@ Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart th
 
 When updating from add-on version 1.x.x to 2.x.x, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
 
+For legacy Splunk environments, if you prefer a slimmer implementation or if the stated cpability limitations are not an option, please use add-on version 1.2.2. Overall functionality is exactly the same. 
+
 Set _python.version=python2_ or _python.version=python3_ in _commands.conf_ if you would like to explicitly specify the Python version to use. Otherwise this will be determined by your instance's global settings. Set _python.version=python2_ in _restmap.conf_ if you experience issues with the app's configuration page on older Splunk instances.
 
 ## Requirements & Setup
