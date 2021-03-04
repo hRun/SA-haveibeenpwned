@@ -44,6 +44,14 @@ Expect the search to take ~ 2 seconds per mail address when using mode=mail due 
 
 ## History
 
+### v2.0.2
+
+* Updated Splunk Python SDK to v1.6.15, removing a bug which can cause Splunk instances to hang
+
+### v2.0.1
+
+* Fixed file permissions for Splunk Cloud vetting
+
 ### v2.0.0
 
 * Implemented Splunk Cloud compatibility by relying on Splunk Add-On Builder for the add-on setup/configuration. Thanks to lukemonahan!

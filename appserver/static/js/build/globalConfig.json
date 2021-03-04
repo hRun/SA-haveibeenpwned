@@ -2,7 +2,7 @@
     "meta": {
         "name": "SA-haveibeenpwned",
         "displayName": "Haveibeenpwned Add-on for Splunk",
-        "version": "1.2.2",
+        "version": "2.0.2",
         "apiVersion": "3.0.0",
         "restRoot": "SA_haveibeenpwned"
     },
@@ -19,7 +19,7 @@
                           "field": "api_key",
                           "label": "API Key",
                           "type": "text",
-                          "help": "Retrieve an API key from https://haveibeenpwned.com/API/Key",
+                          "help": "Required for using mode=mail. Retrieve an API key from https://haveibeenpwned.com/API/Key",
                           "required": true,
                           "defaultValue": "",
                           "encrypted": true,
@@ -45,7 +45,7 @@
                         },
                         {
                             "field": "http_proxy",
-                            "label": "HTTP proxy",
+                            "label": "HTTP Proxy",
                             "type": "text",
                             "validators": [
                                 {
@@ -58,7 +58,7 @@
                         },
                         {
                             "field": "https_proxy",
-                            "label": "HTTPS proxy",
+                            "label": "HTTPS Proxy",
                             "type": "text",
                             "validators": [
                                 {
