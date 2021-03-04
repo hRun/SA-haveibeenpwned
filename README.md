@@ -38,6 +38,10 @@ Expect the search to take ~ 2 seconds per mail address when using mode=mail due 
 
 ## History
 
+### v1.2.3
+
+* Updated Splunk Python SDK to v1.6.15, removing a bug which can cause Splunk instances to hang
+
 ### v1.2.2
 
 * Fixed a bug where the Splunk search would fail if a paste was found for an account but does not return a title or date
