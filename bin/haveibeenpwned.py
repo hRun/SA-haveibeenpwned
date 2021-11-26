@@ -4,14 +4,13 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
 
     Author: Harun Kuessner
-    Version: 2.0.0
+    Version: 2.0.1
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
 from __future__ import absolute_import
 from __future__ import print_function
-from os         import environ
-from os.path    import join
+from os         import environ, path
 from time       import sleep
 
 import datetime
@@ -19,6 +18,7 @@ import logging
 import json
 import sys
 
+sys.path.insert(0, path.join(path.dirname(__file__), "..", "lib"))
 import splunklib.client                as client
 import splunklib.six.moves.http_client as http_client
 
@@ -77,7 +77,7 @@ class hibpCommand(StreamingCommand):
 
         # Set up logging
         logger  = logging.getLogger('haveibeenpwned')
-        handler = logging.handlers.RotatingFileHandler(join(environ['SPLUNK_HOME'], 'var', 'log', 'splunk', 'sa_haveibeenpwned.log'), maxBytes=1048576, backupCount=2)
+        handler = logging.handlers.RotatingFileHandler(path.join(environ['SPLUNK_HOME'], 'var', 'log', 'splunk', 'sa_haveibeenpwned.log'), maxBytes=1048576, backupCount=2)
         handler.setFormatter(logging.Formatter("%(asctime)-15s %(levelname)-5s %(message)s"))
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)

@@ -6,9 +6,12 @@ Please respect people's privacy and adhere to the service's acceptable use (http
 
 I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
-Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 8.2.1 and 8.1.1 on Windows, Linux and Splunk Cloud.
+Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 8.2.3 and 8.1.1 on Windows, Linux and Splunk Cloud.
 
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
+
+* Authors: Harun Kuessner
+* Version: 2.0.4
 
 ## Installation & Updating
 
@@ -43,6 +46,11 @@ _pastes_: Control whether to additionally query for account pastes or not or onl
 Expect the search to take ~ 2 seconds per mail address when using mode=mail due to the API's acceptable use. Do not attempt to spam the search as it will only degrade the performance further. 
 
 ## History
+
+### v2.0.4
+
+* Added appropriate reload triggers
+* Updated Splunk Python SDK to v1.6.18 and moved to ./lib/ directory
 
 ### v2.0.3
 
