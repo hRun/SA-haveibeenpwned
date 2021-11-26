@@ -11,7 +11,7 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 8.2.3 and 8.1.
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.0.4
+* Version: 2.0.5
 
 ## Installation & Updating
 
@@ -46,6 +46,10 @@ _pastes_: Control whether to additionally query for account pastes or not or onl
 Expect the search to take ~ 2 seconds per mail address when using mode=mail due to the API's acceptable use. Do not attempt to spam the search as it will only degrade the performance further. 
 
 ## History
+
+### v2.0.5
+
+* Bug fix
 
 ### v2.0.4
 
