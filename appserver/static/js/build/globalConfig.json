@@ -2,50 +2,42 @@
     "meta": {
         "name": "SA-haveibeenpwned",
         "displayName": "Haveibeenpwned Add-on for Splunk",
-        "version": "2.0.5",
-        "apiVersion": "3.0.0",
-        "restRoot": "SA_haveibeenpwned"
+        "version": "1.0.0",
+        "restRoot": "SA_haveibeenpwned",
+        "schemaVersion": "0.0.3"
     },
     "pages": {
         "configuration": {
             "title": "Configuration",
             "description": "Set up the haveibeenpwned search command",
             "tabs": [
-              {
-                  "name": "additional_parameters",
-                  "title": "Add-on Settings",
-                  "entity": [
-                      {
-                          "field": "api_key",
-                          "label": "API Key",
-                          "type": "text",
-                          "help": "Required for using mode=mail. Retrieve an API key from https://haveibeenpwned.com/API/Key",
-                          "required": true,
-                          "defaultValue": "",
-                          "encrypted": true,
-                          "validators": [
-                              {
-                                  "type": "string",
-                                  "minLength": 0,
-                                  "maxLength": 8192,
-                                  "errorMsg": "Max length of password is 8192"
-                              }
-                          ]
-                      }
-                  ]
-              },
                 {
                     "name": "proxy",
                     "title": "Proxy",
                     "entity": [
                         {
-                            "field": "use_proxies",
+                            "field": "proxy_enabled",
                             "label": "Enable",
                             "type": "checkbox"
                         },
                         {
-                            "field": "http_proxy",
-                            "label": "HTTP Proxy",
+                            "field": "proxy_type",
+                            "label": "Proxy Type",
+                            "type": "singleSelect",
+                            "options": {
+                                "disableSearch": true,
+                                "autoCompleteFields": [
+                                    {
+                                        "label": "http",
+                                        "value": "http"
+                                    }
+                                ]
+                            },
+                            "defaultValue": "http"
+                        },
+                        {
+                            "field": "proxy_url",
+                            "label": "Host",
                             "type": "text",
                             "validators": [
                                 {
@@ -57,21 +49,116 @@
                             ]
                         },
                         {
-                            "field": "https_proxy",
-                            "label": "HTTPS Proxy",
+                            "field": "proxy_port",
+                            "label": "Port",
+                            "type": "text",
+                            "validators": [
+                                {
+                                    "type": "number",
+                                    "range": [
+                                        1,
+                                        65535
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "field": "proxy_username",
+                            "label": "Username",
                             "type": "text",
                             "validators": [
                                 {
                                     "type": "string",
                                     "minLength": 0,
-                                    "maxLength": 4096,
-                                    "errorMsg": "Max host length is 4096"
+                                    "maxLength": 50,
+                                    "errorMsg": "Max length of username is 50"
+                                }
+                            ]
+                        },
+                        {
+                            "field": "proxy_password",
+                            "label": "Password",
+                            "type": "text",
+                            "encrypted": true,
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "minLength": 0,
+                                    "maxLength": 8192,
+                                    "errorMsg": "Max length of password is 8192"
+                                }
+                            ]
+                        },
+                        {
+                            "field": "proxy_rdns",
+                            "label": "Remote DNS resolution",
+                            "type": "checkbox"
+                        }
+                    ],
+                    "options": {
+                        "saveValidator": "function(formData) { if(!formData.proxy_enabled || formData.proxy_enabled === '0') {return true; } if(!formData.proxy_url) { return 'Proxy Host can not be empty'; } if(!formData.proxy_port) { return 'Proxy Port can not be empty'; } return true; }"
+                    }
+                },
+                {
+                    "name": "logging",
+                    "title": "Logging",
+                    "entity": [
+                        {
+                            "field": "loglevel",
+                            "label": "Log level",
+                            "type": "singleSelect",
+                            "options": {
+                                "disableSearch": true,
+                                "autoCompleteFields": [
+                                    {
+                                        "label": "DEBUG",
+                                        "value": "DEBUG"
+                                    },
+                                    {
+                                        "label": "INFO",
+                                        "value": "INFO"
+                                    },
+                                    {
+                                        "label": "WARNING",
+                                        "value": "WARNING"
+                                    },
+                                    {
+                                        "label": "ERROR",
+                                        "value": "ERROR"
+                                    },
+                                    {
+                                        "label": "CRITICAL",
+                                        "value": "CRITICAL"
+                                    }
+                                ]
+                            },
+                            "defaultValue": "INFO"
+                        }
+                    ]
+                },
+                {
+                    "name": "additional_parameters",
+                    "title": "Add-on Settings",
+                    "entity": [
+                        {
+                            "field": "api_key",
+                            "label": "API Key",
+                            "type": "text",
+                            "help": "Required for using mode=mail. Get an API key from https://haveibeenpwned.com/API/Key",
+                            "required": true,
+                            "defaultValue": "",
+                            "encrypted": true,
+                            "validators": [
+                                {
+                                    "type": "string",
+                                    "minLength": 0,
+                                    "maxLength": 8192,
+                                    "errorMsg": "Max length of password is 8192"
                                 }
                             ]
                         }
                     ]
                 }
-
             ]
         }
     }

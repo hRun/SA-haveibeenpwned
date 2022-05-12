@@ -1,3 +1,18 @@
+#
+# Copyright 2021 Splunk Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from builtins import str
 from builtins import range
 from builtins import object
@@ -11,7 +26,7 @@ from cloudconnectlib.common.log import get_cc_logger
 from cloudconnectlib.core import defaults
 from cloudconnectlib.core.exceptions import HTTPError
 from httplib2 import Http, socks, ProxyInfo
-from solnlib.packages.requests import PreparedRequest, utils
+from requests import PreparedRequest, utils
 from solnlib.utils import is_true
 
 try: # Python2 environment support
@@ -23,7 +38,6 @@ _logger = get_cc_logger()
 
 _PROXY_TYPE_MAP = {
     'http': socks.PROXY_TYPE_HTTP,
-    'http_no_tunnel': socks.PROXY_TYPE_HTTP_NO_TUNNEL,
     'socks4': socks.PROXY_TYPE_SOCKS4,
     'socks5': socks.PROXY_TYPE_SOCKS5,
 }

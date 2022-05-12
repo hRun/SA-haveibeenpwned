@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
 
     Author: Harun Kuessner
-    Version: 2.0.1
+    Version: 2.1.0
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
@@ -13,9 +13,11 @@ from __future__ import print_function
 from os         import environ, path
 from time       import sleep
 
+import base64
 import datetime
 import logging
 import json
+#import socks
 import sys
 
 sys.path.insert(0, path.join(path.dirname(__file__), "..", "lib"))
@@ -64,6 +66,8 @@ class hibpCommand(StreamingCommand):
         **Description:** Whether to query for account pastes or not or only those with a timestamp when using mode=mail''',
         require=False, default="dated")
 
+    py3 = True if sys.version_info >= (3, 0) else False
+
     def stream(self, events):
         # Stop execution on invalid option values
         if not self.mode in ['domain', 'mail']:
@@ -80,58 +84,97 @@ class hibpCommand(StreamingCommand):
         handler = logging.handlers.RotatingFileHandler(path.join(environ['SPLUNK_HOME'], 'var', 'log', 'splunk', 'sa_haveibeenpwned.log'), maxBytes=1048576, backupCount=2)
         handler.setFormatter(logging.Formatter("%(asctime)-15s %(levelname)-5s %(message)s"))
         logger.addHandler(handler)
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
 
         # Initialize variables and HTTPS connection
-        tracker                              = 0
-        use_proxies, https_proxy, http_proxy = 0, None, None
-        api_key                              = None
-        date                                 = datetime.datetime.now()
-        service                              = client.Service(token=self.metadata.searchinfo.session_key)
-        use_proxies                          = int(service.confs["sa_haveibeenpwned_settings"]["proxy"]["use_proxies"])
-        storage_passwords                    = service.storage_passwords
+        tracker                           = 0
+        use_proxy                         = 0
+        proxy_type, proxy_url, proxy_port = None, None, None
+        proxy_rdns                        = 0
+        proxy_username, proxy_password    = None, None
+        api_key                           = None
+        date                              = datetime.datetime.now()
+        service                           = client.Service(token=self.metadata.searchinfo.session_key)
+        use_proxy                         = int(service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_enabled'])
+        storage_passwords                 = service.storage_passwords
 
         for storage_password in storage_passwords:
             if storage_password.realm == "__REST_CREDENTIAL__#SA-haveibeenpwned#configs/conf-sa_haveibeenpwned_settings" and storage_password.username == "additional_parameters``splunk_cred_sep``1":
                 api_key = json.loads(storage_password.clear_password)['api_key']
+            if storage_password.realm == "__REST_CREDENTIAL__#SA-haveibeenpwned#configs/conf-sa_haveibeenpwned_settings" and storage_password.username == "proxy``splunk_cred_sep``1":
+                proxy_password = json.loads(storage_password.clear_password)['proxy_password']
+                try:
+                    proxy_username = service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_username']
+                except:
+                    pass
 
         if api_key is not None and len(api_key) >= 32:
-            headers = {'user-agent': 'splunk-app-for-hibp/2.0.0', 'hibp-api-key': '{0}'.format(api_key)}
+            headers = {'User-Agent': 'splunk-app-for-hibp/2.1.0', 'hibp-api-key': '{0}'.format(api_key)}
         else:
-            headers = {'user-agent': 'splunk-app-for-hibp/2.0.0'}
+            headers = {'User-Agent': 'splunk-app-for-hibp/2.1.0'}
             logger.info("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail will not work.")
 
-        if use_proxies == 1:
-            try:
-                https_proxy = service.confs["sa_haveibeenpwned_settings"]["proxy"]["https_proxy"].split('//')[-1].rstrip('/')
-            except:
-                pass
-            try:
-                http_proxy  = service.confs["sa_haveibeenpwned_settings"]["proxy"]["http_proxy"].split('//')[-1].rstrip('/')
-            except:
-                pass
+        if use_proxy == 1:
+            proxy_type = service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_type']
+            proxy_url  = service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_url']
+            proxy_port = service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_port']
 
-            if https_proxy == None and http_proxy == None:
-                logger.error("Proxy usage enabled, but no proxy addresses provided.")
-                raise RuntimeWarning("When enabling proxy use, at least one proxy address needs to be set.")
+            if proxy_type == None:
+                logger.error("Proxy usage enabled, but no proxy type set.")
+                raise RuntimeWarning("Proxy usage enabled, but no proxy type set.")
+            if proxy_url == None:
+                logger.error("Proxy usage enabled, but no proxy URL set.")
+                raise RuntimeWarning("Proxy usage enabled, but no proxy URL set.")
 
-            try:
-                connection = http_client.HTTPSConnection('{0}'.format(https_proxy))
-                connection.set_tunnel('haveibeenpwned.com', port=443)
-                connection.request("HEAD", '/api/v3', headers=headers)
-                connection.getresponse()
-            except Exception as e1:
-                connection.close()
-                logger.error("HTTPS proxy connection failed, falling back to HTTP proxy: {0}".format(e1))
+            if proxy_password:
+                auth = '{0}:{1}'.format(proxy_username, proxy_password)
+                if self.py3:
+                    auth_headers = {'Proxy-Authorization': 'Basic {0}'.format(base64.b64encode(auth.encode('utf-8')).decode('utf-8'))}
+                    #headers['Proxy-Authorization'] = 'Basic {0}'.format(base64.b64encode(auth.encode('utf-8')).decode('utf-8'))
+                else:
+                    auth_headers = {'Proxy-Authorization': 'Basic {0}'.format(base64.b64encode(auth))}
+                    #headers['Proxy-Authorization'] = 'Basic {0}'.format(base64.b64encode(auth))
+            else:
+                auth_headers = {}
+
+            if proxy_type == "http":
                 try:
-                    connection = http_client.HTTPSConnection('{0}'.format(http_proxy))
-                    connection.set_tunnel('haveibeenpwned.com', port=443)
+                    connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
+                    connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
                     connection.request("HEAD", '/api/v3', headers=headers)
                     connection.getresponse()
-                except Exception as e2:
+                except Exception as e1:
                     connection.close()
-                    logger.error("HTTP proxy connection failed: {0}".format(e2))
-                    raise RuntimeWarning("Proxy connection attempts failed, please check your configuration and connectivity: {}, {}".format(e1, e2))
+                    logger.error("HTTPS proxy connection failed, falling back to HTTP proxy: {0}".format(e1))
+                    try:
+                        connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
+                        connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
+                        connection.request("HEAD", '/api/v3', headers=headers)
+                        connection.getresponse()
+                    except Exception as e2:
+                        connection.close()
+                        logger.error("HTTP proxy connection failed: {0}".format(e2))
+                        raise RuntimeWarning("Proxy connection attempts failed, please check your configuration and connectivity: {}, {}".format(e1, e2))
+            """if proxy_type == "socks4":
+                try:
+                    connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
+                    connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
+                    connection.sock = socks.socksocket()
+                    connection.sock.set_proxy(socks.PROXY_TYPE_SOCKS4, '{0}'.format(proxy_url.split('//')[-1].rstrip('/')), proxy_port)
+                    connection.sock.connect(('haveibeenpwned.com', 443))
+                except Exception as e:
+                    connection.close()
+                    raise RuntimeWarning("Proxy connection attempts failed, please check your configuration and connectivity: {}".format(e))
+            if proxy_type == "socks5":
+                try:
+                    connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
+                    connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
+                    connection.sock = socks.socksocket()
+                    connection.sock.set_proxy(socks.PROXY_TYPE_SOCKS5, '{0}'.format(proxy_url.split('//')[-1].rstrip('/')), proxy_port)
+                    connection.sock.connect(('haveibeenpwned.com', 443))
+                except Exception as e:
+                    connection.close()
+                    raise RuntimeWarning("Proxy connection attempts failed, please check your configuration and connectivity: {}".format(e))"""
 
         for event in events:
             # Check for domain breaches
@@ -141,9 +184,9 @@ class hibpCommand(StreamingCommand):
                 # Always do a single request for all breaches only, independent of how many domains to check for
                 if tracker == 0:
                     try:
-                        if not use_proxies == 1:
+                        if not use_proxy == 1:
                             connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-                        connection.request("GET", '/api/v3/breaches', headers=headers)
+                        connection.request('GET', '/api/v3/breaches', headers=headers)
                         response = connection.getresponse()
                     except Exception as e:
                         connection.close()
@@ -157,9 +200,9 @@ class hibpCommand(StreamingCommand):
                     if response.status == 429:
                         sleep(3.2)
                         try:
-                            if not use_proxies == 1:
+                            if not use_proxy == 1:
                                 connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-                            connection.request("GET", '/api/v3/breaches', headers=headers)
+                            connection.request('GET', '/api/v3/breaches', headers=headers)
                             response = connection.getresponse()
                             if response.status == 200:
                                 data = response.read()
@@ -210,9 +253,9 @@ class hibpCommand(StreamingCommand):
 
                 # Check for account breaches
                 try:
-                    if not use_proxies == 1:
+                    if not use_proxy == 1:
                         connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-                    connection.request("GET", '/api/v3/breachedaccount/{0}?truncateResponse=false'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
+                    connection.request('GET', '/api/v3/breachedaccount/{0}?truncateResponse=false'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
                     response = connection.getresponse()
                 except Exception as e:
                     connection.close()
@@ -252,16 +295,16 @@ class hibpCommand(StreamingCommand):
                 else:
                     pass
 
-                if not use_proxies == 1:
+                if not use_proxy == 1:
                     connection.close()
                 sleep(1.7) # Wait before next request to not exceed rate limit
 
                 # Check for account pastes
                 if self.pastes in ['all', 'dated']:
                     try:
-                        if not use_proxies == 1:
+                        if not use_proxy == 1:
                             connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
-                        connection.request("GET", '/api/v3/pasteaccount/{0}'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
+                        connection.request('GET', '/api/v3/pasteaccount/{0}'.format(url_parse.quote_plus(event[self.fieldnames[0]])), headers=headers)
                         response = connection.getresponse()
                     except Exception as e:
                         connection.close()
@@ -304,13 +347,14 @@ class hibpCommand(StreamingCommand):
                     else:
                         pass
 
-                    if not use_proxies == 1:
+                    if not use_proxy == 1:
                         connection.close()
                     sleep(1.7) # Wait before next request to not exceed rate limit
 
             yield event
 
-        if use_proxies == 1:
+        if use_proxy == 1:
             connection.close()
 
 dispatch(hibpCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+

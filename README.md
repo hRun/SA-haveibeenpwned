@@ -11,7 +11,8 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 8.2.3 and 8.1.
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.0.5
+* Version: 2.1.0
+
 
 ## Installation & Updating
 
@@ -19,17 +20,21 @@ Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart th
 
 **Important note on updating to add-on version 2.x.x:** 
 
-When updating from add-on version 1.x.x to 2.x.x, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
+When updating from add-on version 1.x.x to 2.x.x or from any previous version to version 2.1.0, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
 
 For legacy Splunk environments, if you prefer a slimmer implementation or if the stated cpability limitations are not an option, please use add-on version 1.2.2. Overall functionality is exactly the same. 
 
 Set _python.version=python2_ or _python.version=python3_ in _commands.conf_ if you would like to explicitly specify the Python version to use. Otherwise this will be determined by your instance's global settings. Set _python.version=python2_ in _restmap.conf_ if you experience issues with the app's configuration page on older Splunk instances.
+
 
 ## Requirements & Setup
 
 Your Splunk instance requires acess to the internet (via a proxy) to query https://haveibeenpwned.com/api/v3/*. Configure proxies via the app's configuration page if required.
 
 Unfortunately parts of the HIBP API now require an API key which you can obtain here: https://haveibeenpwned.com/API/Key. Specify your API key via the app's configuration page to be able to use _mode=mail_. _mode=domain_ will work without an API key.
+
+If you require using a proxy, unfortunately currently only HTTP(S) proxies are supported and only Basic Authentication. Support for SOCKS proxies and NTLM authentication will be added in a later verion of the app.
+
 
 ## Usage
 
@@ -43,9 +48,29 @@ _threshold_: Set how many days to look back for breaches. Default: 7 days.
 
 _pastes_: Control whether to additionally query for account pastes or not or only those with a timestamp when using mode=mail. Default: dated.
 
+_\<field-list>_: The fields in your Splunk search results that you want to query against the HIBP API. These fields should contain mail addresses or domain names depending on the chosen mode.
+
 Expect the search to take ~ 2 seconds per mail address when using mode=mail due to the API's acceptable use. Do not attempt to spam the search as it will only degrade the performance further. 
 
+
+### Examples
+
+Check a list of mail addresses from local logs for pwnage in the last year, also check for any related pastes
+
+&nbsp;&nbsp;&nbsp;_search index=ad | table email | haveibeenpwned mode=mail threshold=365 pastes=all email_
+
+
+Check a domain for breaches during the last month
+
+&nbsp;&nbsp;&nbsp;_| makeresults | eval mydomain="mydomain.com" | haveibeenpwned mode=domain threshold=31 mydomain_
+
+
 ## History
+
+### v2.1.0
+
+* Re-packaged using Splunk Add-On Builder 4.1.0
+* Updated Splunk Python SDK to v1.6.19
 
 ### v2.0.5
 
@@ -100,3 +125,5 @@ Expect the search to take ~ 2 seconds per mail address when using mode=mail due 
 ## TODO / Known Issues
 
 * Potentially add a mode to query the passwords API. As password hashes should not be stored in Splunk this should not be a valid use case.
+* Currently only HTTP(S) proxies are supported and only Basic Authentication. Add support for SOCKS proxies and NTLM authentication.
+

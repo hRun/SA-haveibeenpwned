@@ -1,12 +1,28 @@
+#
+# Copyright 2021 Splunk Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from builtins import object
 import json
+import logging
 import re
 
 from . import ta_consts as c
 from . import ta_helper as th
 from ..common import log as stulog
-from ...splunktalib import state_store as ss
-from ...splunktalib.common.util import is_true
+from splunktalib import state_store as ss
+from splunktalib.common.util import is_true
 
 
 class TACheckPointMgr(object):
@@ -51,7 +67,7 @@ class TACheckPointMgr(object):
         return ss.get_state_store(
             meta_config,
             app_name,
-            use_cache_file=use_cache_file,
+            use_cached_store=use_cache_file,
             max_cache_seconds=max_cache_seconds
         )
 
@@ -117,6 +133,13 @@ class TACheckPointMgr(object):
             return raw_checkpoint.get("data")
         return raw_checkpoint
 
+    def delete_if_exists(self, namespaces=None):
+        """Return true if exist and deleted else False"""
+        key, namespaces = self._get_ckpt_key(namespaces)
+        if self._store.exists(key):
+            self._store.delete_state(key)
+            return True
+        return False
     def update_ckpt(self, ckpt, namespaces=None):
         if not ckpt:
             stulog.logger.warning("Checkpoint expect to be not empty.")
