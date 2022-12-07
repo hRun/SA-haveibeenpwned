@@ -6,21 +6,25 @@ Please respect people's privacy and adhere to the service's acceptable use (http
 
 I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
-Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 8.2.3 and 8.1.1 on Windows, Linux and Splunk Cloud.
+Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.0.2 and 8.2.3 on Windows, Linux and Splunk Cloud.
 
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.1.0
+* Version: 2.2.0
 
 
 ## Installation & Updating
 
 Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart the instance. Use the deployer in a distributed environment.
 
+**Important note on updating from version 2.1.0 to 2.2.0:** 
+
+Due to changes in the HIBP API's rate limiting, a parameter to set the supplied API key's individual rate limit was added on the add-on's configuration page. It controls sleep intervals during search execution to prevent provoking API timeouts. The parameter is set to 10 requests per minute by default (current lowest tier). To make full use of your API plan, set it to the rate limit tied to the entered API key (as visible from https://haveibeenpwned.com/API/Key/Verify).
+
 **Important note on updating to add-on version 2.x.x:** 
 
-When updating from add-on version 1.x.x to 2.x.x or from any previous version to version 2.1.0, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
+When updating from add-on version 1.x.x to 2.x.x, you'll be required to reconfigure used API key and proxies (see _Requirements & Setup_). Un-privileged users without the _list\_storage\_passwords_ capability will no longer be able to make use of _mode=mail_. A custom role _can\_query\_hibp_ is supplied to empower such users (including all negative implications this capability brings with it until Splunk finally decides to fix it).
 
 For legacy Splunk environments, if you prefer a slimmer implementation or if the stated cpability limitations are not an option, please use add-on version 1.2.2. Overall functionality is exactly the same. 
 
@@ -40,17 +44,19 @@ If you require using a proxy, unfortunately currently only HTTP(S) proxies are s
 
 Use as a search command like so:
 
-_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] [pastes=\<all|dated|none>] \<field-list>_
+_search index=example | table email | haveibeenpwned [mode=<mail|domain>] [threshold=\<days>] [output=<text|json>] [pastes=\<all|dated|none>] \<field-list>_
 
 _mode_: Control whether to query for breaches regarding one or multiple domains or specific mail addresses. Default: mail.
 
 _threshold_: Set how many days to look back for breaches. Default: 7 days.
 
+_output_: Control whether to return the fetched and parsed data as plaintext or json formatted fields. Default: text.
+
 _pastes_: Control whether to additionally query for account pastes or not or only those with a timestamp when using mode=mail. Default: dated.
 
 _\<field-list>_: The fields in your Splunk search results that you want to query against the HIBP API. These fields should contain mail addresses or domain names depending on the chosen mode.
 
-Expect the search to take ~ 2 seconds per mail address when using mode=mail due to the API's acceptable use. Do not attempt to spam the search as it will only degrade the performance further. 
+When using mode=mail, search performance is highly dependent on the number of queried mail addresses and your API key's rate limit. Expect 0.12 seconds on the highest tier API key and up to 6 seconds per mail address when using the lowest tier API key. This is to adhere to the API's acceptable use terms. Do not attempt to spam the search as it will only degrade the performance further. 
 
 
 ### Examples
@@ -60,12 +66,21 @@ Check a list of mail addresses from local logs for pwnage in the last year, also
 &nbsp;&nbsp;&nbsp;_search index=ad | table email | haveibeenpwned mode=mail threshold=365 pastes=all email_
 
 
-Check a domain for breaches during the last month
+Check a domain for breaches during the last month and output as json
 
-&nbsp;&nbsp;&nbsp;_| makeresults | eval mydomain="mydomain.com" | haveibeenpwned mode=domain threshold=31 mydomain_
+&nbsp;&nbsp;&nbsp;_| makeresults | eval mydomain="mydomain.com" | haveibeenpwned mode=domain threshold=31 output=json mydomain_
 
 
 ## History
+
+### v2.2.0
+
+* Fixed issue where domain names were mismatched
+* Fixed issue where fields would not show up due to exceeding rate limits
+* Added command parameter to output fetched data as json
+* Added setting for API key rate limit, so sleeping intervals can be controlled
+* Updated python sdk
+
 
 ### v2.1.0
 

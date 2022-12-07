@@ -12,3 +12,4 @@ loglevel =
 
 [additional_parameters]
 api_key = 
+rate_limit = 

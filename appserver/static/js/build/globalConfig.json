@@ -156,6 +156,23 @@
                                     "errorMsg": "Max length of password is 8192"
                                 }
                             ]
+                        },
+                        {
+                            "field": "rate_limit",
+                            "label": "API Key Rate Limit",
+                            "type": "text",
+                            "help": "The entered API key's rate limit as displayed on https://haveibeenpwned.com/API/Key/Verify",
+                            "required": true,
+                            "defaultValue": 10,
+                            "validators": [
+                                {
+                                    "type": "number",
+                                    "range": [
+                                        10,
+                                        1000
+                                    ]
+                                }
+                            ]
                         }
                     ]
                 }

@@ -101,6 +101,16 @@ fields_additional_parameters = [
             min_len=0, 
             max_len=8192, 
         )
+    ),
+    field.RestField(
+        'rate_limit',
+        required=True,
+        encrypted=False,
+        default=10,
+        validator=validator.Number(
+            min_val=10, 
+            max_val=1000, 
+        )
     )
 ]
 model_additional_parameters = RestModel(fields_additional_parameters, name='additional_parameters')

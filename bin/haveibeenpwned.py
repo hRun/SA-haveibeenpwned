@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
 
     Author: Harun Kuessner
-    Version: 2.1.0
+    Version: 2.2.0
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
@@ -32,7 +32,7 @@ class hibpCommand(StreamingCommand):
     """
     ##Syntax
 
-    haveibeenpwned [mode=mail|domain] [threshold=<days>] [pastes=all|dated|none] <field-list>
+    haveibeenpwned [mode=mail|domain] [threshold=<days>] [output=text|json] [pastes=all|dated|none] <field-list>
 
     ##Description
 
@@ -60,6 +60,12 @@ class hibpCommand(StreamingCommand):
         **Description:** How many days to look back in time for breaches''',
         require=False, default=7)
 
+    output = Option(
+        doc='''
+        **Syntax:** **output=***text|json*
+        **Description:** Whether to return fetched data as plain text or json formatted''',
+        require=False, default="text")
+
     pastes = Option(
         doc='''
         **Syntax:** **pastes=***all|dated|none*
@@ -68,12 +74,15 @@ class hibpCommand(StreamingCommand):
 
     py3 = True if sys.version_info >= (3, 0) else False
 
+
     def stream(self, events):
         # Stop execution on invalid option values
         if not self.mode in ['domain', 'mail']:
             raise RuntimeWarning('Invalid value for option "mode" specified: "{0}"'.format(self.mode))
         if self.mode == 'mail' and not self.pastes in ['all', 'dated', 'none']:
             raise RuntimeWarning('Invalid value for option "pastes" specified: "{0}"'.format(self.pastes))
+        if not self.output in ['text', 'json']:
+            raise RuntimeWarning('Invalid value for option "output" specified: "{0}"'.format(self.output))
         try:
             int(self.threshold)
         except:
@@ -96,6 +105,7 @@ class hibpCommand(StreamingCommand):
         date                              = datetime.datetime.now()
         service                           = client.Service(token=self.metadata.searchinfo.session_key)
         use_proxy                         = int(service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_enabled'])
+        rate_limit                        = int(service.confs['sa_haveibeenpwned_settings']['additional_parameters']['rate_limit'])
         storage_passwords                 = service.storage_passwords
 
         for storage_password in storage_passwords:
@@ -109,9 +119,9 @@ class hibpCommand(StreamingCommand):
                     pass
 
         if api_key is not None and len(api_key) >= 32:
-            headers = {'User-Agent': 'splunk-app-for-hibp/2.1.0', 'hibp-api-key': '{0}'.format(api_key)}
+            headers = {'User-Agent': 'splunk-app-for-hibp/2.2.0', 'hibp-api-key': '{0}'.format(api_key)}
         else:
-            headers = {'User-Agent': 'splunk-app-for-hibp/2.1.0'}
+            headers = {'User-Agent': 'splunk-app-for-hibp/2.2.0'}
             logger.info("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail will not work.")
 
         if use_proxy == 1:
@@ -141,7 +151,7 @@ class hibpCommand(StreamingCommand):
                 try:
                     connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
                     connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
-                    connection.request("HEAD", '/api/v3', headers=headers)
+                    connection.request('HEAD', '/api/v3', headers=headers)
                     connection.getresponse()
                 except Exception as e1:
                     connection.close()
@@ -149,7 +159,7 @@ class hibpCommand(StreamingCommand):
                     try:
                         connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
                         connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
-                        connection.request("HEAD", '/api/v3', headers=headers)
+                        connection.request('HEAD', '/api/v3', headers=headers)
                         connection.getresponse()
                     except Exception as e2:
                         connection.close()
@@ -198,7 +208,7 @@ class hibpCommand(StreamingCommand):
 
                     # Wait and attempt one more time if we exceeded the rate limit
                     if response.status == 429:
-                        sleep(3.2)
+                        sleep(60/rate_limit + 0.1)
                         try:
                             if not use_proxy == 1:
                                 connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
@@ -218,29 +228,50 @@ class hibpCommand(StreamingCommand):
 
                 if data is not None:
                     for entry in json.loads(data.decode('utf8')):
-                        if int((date - datetime.datetime.strptime(entry['AddedDate'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold) or not event[self.fieldnames[0]] in entry['Domain']:
+                        if int((date - datetime.datetime.strptime(entry['AddedDate'], '%Y-%m-%dT%H:%M:%SZ')).days) > int(self.threshold) \
+                            or not (event[self.fieldnames[0]] == entry['Domain'] or event[self.fieldnames[0]] == '.{0}'.format(entry['Domain'])):
                             pass
                         else:
                             dataclass = []
                             for dataclasses in entry['DataClasses']:
                                 dataclass.append(dataclasses)
 
-                            breach.append(['Title: {0}'.format(entry['Title']), \
-                                           'Domain: {0}'.format(entry['Domain']), \
-                                           'Date of Breach: {0}'.format(entry['BreachDate']), \
-                                           'Date of Availability: {0}'.format(entry['AddedDate']), \
-                                           'Breached Accounts: {0}'.format(entry['PwnCount']), \
-                                           'Breached Data: {0}'.format(', '.join(dataclass)), \
-                                           'Breach Description: {0}'.format(entry['Description'])])
+                            if self.output == "text":
+                                breach.append(["Title: {0}".format(entry['Title']), \
+                                               "Domain: {0}".format(entry['Domain']), \
+                                               "Date of Breach: {0}".format(entry['BreachDate']), \
+                                               "Date of Availability: {0}".format(entry['AddedDate']), \
+                                               "Breached Accounts: {0}".format(entry['PwnCount']), \
+                                               "Breached Data: {0}".format(', '.join(dataclass)), \
+                                               "Breach Description: {0}".format(entry['Description'])])
+                            else:
+                                breach.append({"Title": "{0}".format(entry['Title']), \
+                                               "Domain": "{0}".format(entry['Domain']), \
+                                               "Date of Breach": "{0}".format(entry['BreachDate']), \
+                                               "Date of Availability": "{0}".format(entry['AddedDate']), \
+                                               "Breached Accounts": "{0}".format(entry['PwnCount']), \
+                                               "Breached Data": "{0}".format(', '.join(dataclass)), \
+                                               "Breach Description": "{0}".format(entry['Description'])})
 
                     if len(breach) == 0:
-                        event['breach'] = "No breach reported for given domain and time frame."
+                        if self.output == "text":
+                            event['breach'] = "No breach reported for given domain and time frame."
+                        else:
+                            event['breach'] = {"Message": "No breach reported for given domain and time frame."}
                     else:
-                        event['breach'] = ""
-                        for entry in breach:
-                            for item in entry:
-                                event['breach'] += str(item) + "\r\n"
-                            event['breach'] += "\r\n"
+                        if self.output == "text":
+                            event['breach'] = ""
+                            for entry in breach:
+                                for item in entry:
+                                    event['breach'] += str(item) + "\r\n"
+                                event['breach'] += "\r\n"
+                        else:
+                            event['breach'] = "{"
+                            for i, entry in enumerate(breach):
+                                event['breach'] += '"Breach {0}": {1}, '.format(i+1, entry)
+                            #event['breach'].rstrip(', ')
+                            event['breach'] += "}"
+
 
             # Check for account breaches and pastes
             elif self.mode == "mail":
@@ -273,31 +304,58 @@ class hibpCommand(StreamingCommand):
                             for dataclasses in entry['DataClasses']:
                                 dataclass.append(dataclasses)
 
-                            breach.append(['Title: {0}'.format(entry['Title']), \
-                                           'Domain: {0}'.format(entry['Domain']), \
-                                           'Date of Breach: {0}'.format(entry['BreachDate']), \
-                                           'Date of Availability: {0}'.format(entry['AddedDate']), \
-                                           'Breached Data: {0}'.format(', '.join(dataclass))])
+                            if self.output == "text":
+                                breach.append(["Title: {0}".format(entry['Title']), \
+                                               "Domain: {0}".format(entry['Domain']), \
+                                               "Date of Breach: {0}".format(entry['BreachDate']), \
+                                               "Date of Availability: {0}".format(entry['AddedDate']), \
+                                               "Breached Data: {0}".format(', '.join(dataclass))])
+                            else:
+                                breach.append({"Title": "{0}".format(entry['Title']), \
+                                               "Domain": "{0}".format(entry['Domain']), \
+                                               "Date of Breach": "{0}".format(entry['BreachDate']), \
+                                               "Date of Availability": "{0}".format(entry['AddedDate']), \
+                                               "Breached Data": "{0}".format(', '.join(dataclass))})
 
                     if len(breach) == 0:
-                        event['breach'] = "No breach reported for given account and time frame."
+                        if self.output == "text":
+                            event['breach'] = "No breach reported for given account and time frame."
+                        else:
+                            event['breach'] = {"Message": "No breach reported for given account and time frame."}
                     else:
-                        event['breach'] = ""
-                        for entry in breach:
-                            for item in entry:
-                                event['breach'] += str(item) + "\r\n"
-                            event['breach'] += "\r\n"
+                        if self.output == "text":
+                            event['breach'] = ""
+                            for entry in breach:
+                                for item in entry:
+                                    event['breach'] += str(item) + "\r\n"
+                                event['breach'] += "\r\n"
+                        else:
+                            event['breach'] = "{"
+                            for i, entry in enumerate(breach):
+                                event['breach'] += '"Breach {0}": {1}, '.format(i+1, entry)
+                            #event['breach'].rstrip(', ')
+                            event['breach'] += "}"
 
                 elif response.status == 429:
-                    sleep(3.2)
+                    if self.output == "text":
+                        event['breach'] = "API rate limit exceeded, no breach could be retrieved."
+                    else:
+                        event['breach'] = {"Message": "API rate limit exceeded, no breach could be retrieved."}
+                    sleep(120/rate_limit + 0.1)
                 elif response.status == 404:
-                    event['breach'] = "No breach reported for given account and time frame."
+                    if self.output == "text":
+                        event['breach'] = "No breach reported for given account and time frame."
+                    else:
+                        event['breach'] = {"Message": "No breach reported for given account and time frame."}
                 else:
-                    pass
+                    if self.output == "text":
+                        event['breach'] = "Received {0} HTTP response code from API, no breach could be retrieved.".format(response.status)
+                    else:
+                        event['breach'] = {"Message": "Received {0} HTTP response code from API, no breach could be retrieved.".format(response.status)}
 
                 if not use_proxy == 1:
                     connection.close()
-                sleep(1.7) # Wait before next request to not exceed rate limit
+                sleep(60/rate_limit + 0.1) # Wait before next request to not exceed rate limit
 
                 # Check for account pastes
                 if self.pastes in ['all', 'dated']:
@@ -324,32 +382,58 @@ class hibpCommand(StreamingCommand):
                                 entry['Date'] = "N/A"
 
                             if entry['Date'] and (entry['Date'] == "N/A" or int((date - datetime.datetime.strptime(entry['Date'], '%Y-%m-%dT%H:%M:%SZ')).days) <= int(self.threshold)):
-                                paste.append(['Title: {0}'.format(entry['Title']), \
-                                              'Source: {0}'.format(entry['Source']), \
-                                              'Paste ID: {0}'.format(entry['Id']), \
-                                              'Date: {0}'.format(entry['Date'])])
+                                if self.output == "text":
+                                    paste.append(["Title: {0}".format(entry['Title']), \
+                                                  "Source: {0}".format(entry['Source']), \
+                                                  "Paste ID: {0}".format(entry['Id']), \
+                                                  "Date: {0}".format(entry['Date'])])
+                                else:
+                                    paste.append({"Title": "{0}".format(entry['Title']), \
+                                                  "Source": "{0}".format(entry['Source']), \
+                                                  "Paste ID": "{0}".format(entry['Id']), \
+                                                  "Date": "{0}".format(entry['Date'])})
                             else:
                                 pass
 
                         if len(paste) == 0:
-                            event['paste'] = "No paste reported for given account and time frame."
+                            if self.output == "text":
+                                event['paste'] = "No paste reported for given account and time frame."
+                            else:
+                                event['paste'] = {"Message": "No paste reported for given account and time frame."}
                         else:
-                            event['paste'] = ""
-                            for entry in paste:
-                                for item in entry:
-                                    event['paste'] += str(item) + "\r\n"
-                                event['paste'] += "\r\n"
+                            if self.output == "text":
+                                event['paste'] = ""
+                                for entry in breach:
+                                    for item in entry:
+                                        event['paste'] += str(item) + "\r\n"
+                                    event['paste'] += "\r\n"
+                            else:
+                                event['paste'] = "{"
+                                for i, entry in enumerate(paste):
+                                    event['paste'] += '"Paste {0}": {1}, '.format(i+1, entry)
+                                #event['paste'].rstrip(', ')
+                                event['paste'] += "}"
 
                     elif response.status == 429:
-                        sleep(3.2)
+                        if self.output == "text":
+                            event['paste'] = "API rate limit exceeded, no paste could be retrieved."
+                        else:
+                            event['paste'] = {"Message": "API rate limit exceeded, no paste could be retrieved."}
+                        sleep(120/rate_limit + 0.1)
                     elif response.status == 404:
-                        event['paste'] = "No paste reported for given account and time frame."
+                        if self.output == "text":
+                            event['paste'] = "No paste reported for given account and time frame."
+                        else:
+                            event['paste'] = {"Message": "No paste reported for given account and time frame."}
                     else:
-                        pass
+                        if self.output == "text":
+                            event['paste'] = "Received {0} HTTP response code from API, no paste could be retrieved.".format(response.status)
+                        else:
+                            event['paste'] = {"Message": "Received {0} HTTP response code from API, no paste could be retrieved.".format(response.status)}
 
                     if not use_proxy == 1:
                         connection.close()
-                    sleep(1.7) # Wait before next request to not exceed rate limit
+                    sleep(60/rate_limit + 0.1) # Wait before next request to not exceed rate limit
 
             yield event
 
@@ -357,4 +441,5 @@ class hibpCommand(StreamingCommand):
             connection.close()
 
 dispatch(hibpCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+
 

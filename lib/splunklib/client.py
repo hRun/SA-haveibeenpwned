@@ -62,6 +62,7 @@ import contextlib
 import datetime
 import json
 import logging
+import re
 import socket
 from datetime import datetime, timedelta
 from time import sleep
@@ -99,6 +100,7 @@ PATH_FIRED_ALERTS = "alerts/fired_alerts/"
 PATH_INDEXES = "data/indexes/"
 PATH_INPUTS = "data/inputs/"
 PATH_JOBS = "search/jobs/"
+PATH_JOBS_V2 = "search/v2/jobs/"
 PATH_LOGGER = "/services/server/logger/"
 PATH_MESSAGES = "messages/"
 PATH_MODULAR_INPUTS = "data/modular-inputs"
@@ -226,7 +228,10 @@ def _load_atom_entries(response):
 
 
 # Load the sid from the body of the given response
-def _load_sid(response):
+def _load_sid(response, output_mode):
+    if output_mode == "json":
+        json_obj = json.loads(response.body.read())
+        return json_obj.get('sid')
     return _load_atom(response).response.sid
 
 
@@ -320,6 +325,11 @@ def connect(**kwargs):
     :type username: ``string``
     :param `password`: The password for the Splunk account.
     :type password: ``string``
+    :param retires: Number of retries for each HTTP connection (optional, the default is 0).
+                    NOTE THAT THIS MAY INCREASE THE NUMBER OF ROUND TRIP CONNECTIONS TO THE SPLUNK SERVER.
+    :type retries: ``int``
+    :param retryDelay: How long to wait between connection attempts if `retries` > 0 (optional, defaults to 10s).
+    :type retryDelay: ``int`` (in seconds)
     :param `context`: The SSLContext that can be used when setting verify=True (optional)
     :type context: ``SSLContext``
     :return: An initialized :class:`Service` connection.
@@ -388,6 +398,11 @@ class Service(_BaseService):
     :param `password`: The password, which is used to authenticate the Splunk
                        instance.
     :type password: ``string``
+    :param retires: Number of retries for each HTTP connection (optional, the default is 0).
+                    NOTE THAT THIS MAY INCREASE THE NUMBER OF ROUND TRIP CONNECTIONS TO THE SPLUNK SERVER.
+    :type retries: ``int``
+    :param retryDelay: How long to wait between connection attempts if `retries` > 0 (optional, defaults to 10s).
+    :type retryDelay: ``int`` (in seconds)
     :return: A :class:`Service` instance.
 
     **Example**::
@@ -406,6 +421,7 @@ class Service(_BaseService):
         super(Service, self).__init__(**kwargs)
         self._splunk_version = None
         self._kvstore_owner = None
+        self._instance_type = None
 
     @property
     def apps(self):
@@ -557,6 +573,8 @@ class Service(_BaseService):
         :type kwargs: ``dict``
         :return: A semantic map of the parsed search query.
         """
+        if not self.disable_v2_api:
+            return self.post("search/v2/parser", q=query, **kwargs)
         return self.get("search/parser", q=query, **kwargs)
 
     def restart(self, timeout=None):
@@ -679,6 +697,22 @@ class Service(_BaseService):
         return self._splunk_version
 
     @property
+    def splunk_instance(self):
+        if self._instance_type is None :
+            splunk_info = self.info;
+            if hasattr(splunk_info, 'instance_type') :
+                self._instance_type = splunk_info['instance_type']
+            else:
+                self._instance_type = ''
+        return self._instance_type
+
+    @property
+    def disable_v2_api(self):
+        if self.splunk_instance.lower() == 'cloud':
+            return self.splunk_version < (9,0,2209)
+        return self.splunk_version < (9,0,2)
+
+    @property
     def kvstore_owner(self):
         """Returns the KVStore owner for this instance of Splunk.
 
@@ -727,6 +761,25 @@ class Endpoint(object):
     def __init__(self, service, path):
         self.service = service
         self.path = path
+
+    def get_api_version(self, path):
+        """Return the API version of the service used in the provided path.
+
+        Args:
+            path (str): A fully-qualified endpoint path (for example, "/services/search/jobs").
+
+        Returns:
+            int: Version of the API (for example, 1)
+        """
+        # Default to v1 if undefined in the path
+        # For example, "/services/search/jobs" is using API v1
+        api_version = 1
+        
+        versionSearch = re.search('(?:servicesNS\/[^/]+\/[^/]+|services)\/[^/]+\/v(\d+)\/', path)
+        if versionSearch:
+            api_version = int(versionSearch.group(1))
+    
+        return api_version
 
     def get(self, path_segment="", owner=None, app=None, sharing=None, **query):
         """Performs a GET operation on the path segment relative to this endpoint.
@@ -790,6 +843,22 @@ class Endpoint(object):
                                          app=app, sharing=sharing)
         # ^-- This was "%s%s" % (self.path, path_segment).
         # That doesn't work, because self.path may be UrlEncoded.
+
+        # Get the API version from the path
+        api_version = self.get_api_version(path)
+
+        # Search API v2+ fallback to v1:
+        #   - In v2+, /results_preview, /events and /results do not support search params.
+        #   - Fallback from v2+ to v1 if Splunk Version is < 9.
+        # if api_version >= 2 and ('search' in query and path.endswith(tuple(["results_preview", "events", "results"])) or self.service.splunk_version < (9,)):
+        #     path = path.replace(PATH_JOBS_V2, PATH_JOBS)
+        
+        if api_version == 1:
+            if isinstance(path, UrlEncoded):
+                path = UrlEncoded(path.replace(PATH_JOBS_V2, PATH_JOBS), skip_encode=True)
+            else:
+                path = path.replace(PATH_JOBS_V2, PATH_JOBS)
+
         return self.service.get(path,
                                 owner=owner, app=app, sharing=sharing,
                                 **query)
@@ -842,13 +911,29 @@ class Endpoint(object):
             apps.get('nonexistant/path') # raises HTTPError
             s.logout()
             apps.get() # raises AuthenticationError
-        """
+        """       
         if path_segment.startswith('/'):
             path = path_segment
         else:
             if not self.path.endswith('/') and path_segment != "":
                 self.path = self.path + '/'
             path = self.service._abspath(self.path + path_segment, owner=owner, app=app, sharing=sharing)
+            
+        # Get the API version from the path
+        api_version = self.get_api_version(path)
+
+        # Search API v2+ fallback to v1:
+        #   - In v2+, /results_preview, /events and /results do not support search params.
+        #   - Fallback from v2+ to v1 if Splunk Version is < 9.
+        # if api_version >= 2 and ('search' in query and path.endswith(tuple(["results_preview", "events", "results"])) or self.service.splunk_version < (9,)):
+        #     path = path.replace(PATH_JOBS_V2, PATH_JOBS)
+        
+        if api_version == 1:
+            if isinstance(path, UrlEncoded):
+                path = UrlEncoded(path.replace(PATH_JOBS_V2, PATH_JOBS), skip_encode=True)
+            else:
+                path = path.replace(PATH_JOBS_V2, PATH_JOBS)
+
         return self.service.post(path, owner=owner, app=app, sharing=sharing, **query)
 
 
@@ -859,32 +944,21 @@ class Entity(Endpoint):
 
     ``Entity`` provides the majority of functionality required by entities.
     Subclasses only implement the special cases for individual entities.
-    For example for deployment serverclasses, the subclass makes whitelists and
-    blacklists into Python lists.
+    For example for saved searches, the subclass makes fields like ``action.email``,
+    ``alert_type``, and ``search`` available.
 
     An ``Entity`` is addressed like a dictionary, with a few extensions,
-    so the following all work::
+    so the following all work, for example in saved searches::
 
-        ent['email.action']
-        ent['disabled']
-        ent['whitelist']
-
-    Many endpoints have values that share a prefix, such as
-    ``email.to``, ``email.action``, and ``email.subject``. You can extract
-    the whole fields, or use the key ``email`` to get a dictionary of
-    all the subelements. That is, ``ent['email']`` returns a
-    dictionary with the keys ``to``, ``action``, ``subject``, and so on. If
-    there are multiple levels of dots, each level is made into a
-    subdictionary, so ``email.body.salutation`` can be accessed at
-    ``ent['email']['body']['salutation']`` or
-    ``ent['email.body.salutation']``.
+        ent['action.email']
+        ent['alert_type']
+        ent['search']
 
     You can also access the fields as though they were the fields of a Python
     object, as in::
 
-        ent.email.action
-        ent.disabled
-        ent.whitelist
+        ent.alert_type
+        ent.search
 
     However, because some of the field names are not valid Python identifiers,
     the dictionary-like syntax is preferable.
@@ -1093,8 +1167,6 @@ class Entity(Endpoint):
     def disable(self):
         """Disables the entity at this endpoint."""
         self.post("disable")
-        if self.service.restart_required:
-            self.service.restart(120)
         return self
 
     def enable(self):
@@ -1846,8 +1918,6 @@ class StoragePasswords(Collection):
     instance. Retrieve this collection using :meth:`Service.storage_passwords`.
     """
     def __init__(self, service):
-        if service.namespace.owner == '-' or service.namespace.app == '-':
-            raise ValueError("StoragePasswords cannot have wildcards in namespace.")
         super(StoragePasswords, self).__init__(service, PATH_STORAGE_PASSWORDS, item=StoragePassword)
 
     def create(self, password, username, realm=None):
@@ -1865,6 +1935,9 @@ class StoragePasswords(Collection):
 
         :return: The :class:`StoragePassword` object created.
         """
+        if self.service.namespace.owner == '-' or self.service.namespace.app == '-':
+            raise ValueError("While creating StoragePasswords, namespace cannot have wildcards.")
+
         if not isinstance(username, six.string_types):
             raise ValueError("Invalid name: %s" % repr(username))
 
@@ -1896,6 +1969,9 @@ class StoragePasswords(Collection):
         :return: The `StoragePassword` collection.
         :rtype: ``self``
         """
+        if self.service.namespace.owner == '-' or self.service.namespace.app == '-':
+            raise ValueError("app context must be specified when removing a password.")
+
         if realm is None:
             # This case makes the username optional, so
             # the full name can be passed in as realm.
@@ -2660,7 +2736,14 @@ class Inputs(Collection):
 class Job(Entity):
     """This class represents a search job."""
     def __init__(self, service, sid, **kwargs):
-        path = PATH_JOBS + sid
+        # Default to v2 in Splunk Version 9+
+        path = "{path}{sid}"
+        # Formatting path based on the Splunk Version
+        if service.disable_v2_api:
+            path = path.format(path=PATH_JOBS, sid=sid)
+        else:
+            path = path.format(path=PATH_JOBS_V2, sid=sid)
+
         Entity.__init__(self, service, path, skip_refresh=True, **kwargs)
         self.sid = sid
 
@@ -2714,7 +2797,11 @@ class Job(Entity):
         :return: The ``InputStream`` IO handle to this job's events.
         """
         kwargs['segmentation'] = kwargs.get('segmentation', 'none')
-        return self.get("events", **kwargs).body
+        
+        # Search API v1(GET) and v2(POST)
+        if self.service.disable_v2_api:
+            return self.get("events", **kwargs).body
+        return self.post("events", **kwargs).body
 
     def finalize(self):
         """Stops the job and provides intermediate results for retrieval.
@@ -2802,7 +2889,11 @@ class Job(Entity):
         :return: The ``InputStream`` IO handle to this job's results.
         """
         query_params['segmentation'] = query_params.get('segmentation', 'none')
-        return self.get("results", **query_params).body
+        
+        # Search API v1(GET) and v2(POST)
+        if self.service.disable_v2_api:
+            return self.get("results", **query_params).body
+        return self.post("results", **query_params).body
 
     def preview(self, **query_params):
         """Returns a streaming handle to this job's preview search results.
@@ -2843,7 +2934,11 @@ class Job(Entity):
         :return: The ``InputStream`` IO handle to this job's preview results.
         """
         query_params['segmentation'] = query_params.get('segmentation', 'none')
-        return self.get("results_preview", **query_params).body
+        
+        # Search API v1(GET) and v2(POST)
+        if self.service.disable_v2_api:
+            return self.get("results_preview", **query_params).body
+        return self.post("results_preview", **query_params).body
 
     def searchlog(self, **kwargs):
         """Returns a streaming handle to this job's search log.
@@ -2932,7 +3027,12 @@ class Jobs(Collection):
     """This class represents a collection of search jobs. Retrieve this
     collection using :meth:`Service.jobs`."""
     def __init__(self, service):
-        Collection.__init__(self, service, PATH_JOBS, item=Job)
+        # Splunk 9 introduces the v2 endpoint
+        if not service.disable_v2_api:
+            path = PATH_JOBS_V2
+        else:
+            path = PATH_JOBS
+        Collection.__init__(self, service, path, item=Job)
         # The count value to say list all the contents of this
         # Collection is 0, not -1 as it is on most.
         self.null_count = 0
@@ -2968,7 +3068,7 @@ class Jobs(Collection):
         if kwargs.get("exec_mode", None) == "oneshot":
             raise TypeError("Cannot specify exec_mode=oneshot; use the oneshot method instead.")
         response = self.post(search=query, **kwargs)
-        sid = _load_sid(response)
+        sid = _load_sid(response, kwargs.get("output_mode", None))
         return Job(self.service, sid)
 
     def export(self, query, **params):
@@ -3029,7 +3129,7 @@ class Jobs(Collection):
     def oneshot(self, query, **params):
         """Run a oneshot search and returns a streaming handle to the results.
 
-        The ``InputStream`` object streams XML fragments from the server. To parse this stream into usable Python
+        The ``InputStream`` object streams fragments from the server. To parse this stream into usable Python
         objects, pass the handle to :class:`splunklib.results.JSONResultsReader` along with the query param
         "output_mode='json'" ::
 
@@ -3184,7 +3284,7 @@ class SavedSearch(Entity):
         :return: The :class:`Job`.
         """
         response = self.post("dispatch", **kwargs)
-        sid = _load_sid(response)
+        sid = _load_sid(response, kwargs.get("output_mode", None))
         return Job(self.service, sid)
 
     @property
@@ -3208,12 +3308,15 @@ class SavedSearch(Entity):
             item=AlertGroup)
         return c
 
-    def history(self):
+    def history(self, **kwargs):
         """Returns a list of search jobs corresponding to this saved search.
+
+        :param `kwargs`: Additional arguments (optional).
+        :type kwargs: ``dict``
 
         :return: A list of :class:`Job` objects.
         """
-        response = self.get("history")
+        response = self.get("history", **kwargs)
         entries = _load_atom_entries(response)
         if entries is None: return []
         jobs = []
