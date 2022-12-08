@@ -11,14 +11,14 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.0.2 and 8.2.
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.2.0
+* Version: 2.2.1
 
 
 ## Installation & Updating
 
 Just unpack to _$SPLUNK_HOME/etc/apps_ on your Splunk search head and restart the instance. Use the deployer in a distributed environment.
 
-**Important note on updating from version 2.1.0 to 2.2.0:** 
+**Important note on updating from version 2.1.0 to 2.2.1:** 
 
 Due to changes in the HIBP API's rate limiting, a parameter to set the supplied API key's individual rate limit was added on the add-on's configuration page. It controls sleep intervals during search execution to prevent provoking API timeouts. The parameter is set to 10 requests per minute by default (current lowest tier). To make full use of your API plan, set it to the rate limit tied to the entered API key (as visible from https://haveibeenpwned.com/API/Key/Verify).
 
@@ -73,6 +73,10 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
+### v2.2.1
+
+* Fixed metadata issue breaking Splunk Cloud compatibility
+
 ### v2.2.0
 
 * Fixed issue where domain names were mismatched
@@ -80,7 +84,6 @@ Check a domain for breaches during the last month and output as json
 * Added command parameter to output fetched data as json
 * Added setting for API key rate limit, so sleeping intervals can be controlled
 * Updated python sdk
-
 
 ### v2.1.0
 
