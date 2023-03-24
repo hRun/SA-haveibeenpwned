@@ -152,15 +152,17 @@ class hibpCommand(StreamingCommand):
                     connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
                     connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
                     connection.request('HEAD', '/api/v3', headers=headers)
-                    connection.getresponse()
+                    r = connection.getresponse()
+                    r.read()
                 except Exception as e1:
                     connection.close()
                     logger.error("HTTPS proxy connection failed, falling back to HTTP proxy: {0}".format(e1))
                     try:
-                        connection = http_client.HTTPSConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
+                        connection = http_client.HTTPConnection('{0}'.format(proxy_url.split('//')[-1].rstrip('/')), port=proxy_port)
                         connection.set_tunnel('haveibeenpwned.com', port=443, headers=auth_headers)
                         connection.request('HEAD', '/api/v3', headers=headers)
-                        connection.getresponse()
+                        r = connection.getresponse()
+                        r.read()
                     except Exception as e2:
                         connection.close()
                         logger.error("HTTP proxy connection failed: {0}".format(e2))

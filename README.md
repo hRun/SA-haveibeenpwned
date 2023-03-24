@@ -73,6 +73,11 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
+### v2.2.3
+
+* Updated Splunk Python SDK to v1.7.3, fixed a bug which caused proxy connections to hang
+
+
 ### v2.2.2
 
 * Fixed metadata issue breaking Splunk Cloud compatibility
