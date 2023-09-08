@@ -1,5 +1,6 @@
 ._*
 *.pyc
+__pycache__/
 
 /local/**
 /metadata/local.meta

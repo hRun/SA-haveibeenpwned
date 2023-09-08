@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
 
     Author: Harun Kuessner
-    Version: 2.2.0
+    Version: 2.3.0
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 
@@ -50,7 +50,7 @@ class hibpCommand(StreamingCommand):
 
     mode = Option(
         doc='''
-        **Syntax:** **mode=***mail|domain*
+        **Syntax:** **mode=***mail|domain|monitored*
         **Description:** Whether to query for mail address or domain breach''',
         require=False, default="mail")
 
@@ -77,7 +77,7 @@ class hibpCommand(StreamingCommand):
 
     def stream(self, events):
         # Stop execution on invalid option values
-        if not self.mode in ['domain', 'mail']:
+        if not self.mode in ['domain', 'mail', 'monitored']:
             raise RuntimeWarning('Invalid value for option "mode" specified: "{0}"'.format(self.mode))
         if self.mode == 'mail' and not self.pastes in ['all', 'dated', 'none']:
             raise RuntimeWarning('Invalid value for option "pastes" specified: "{0}"'.format(self.pastes))
@@ -96,7 +96,7 @@ class hibpCommand(StreamingCommand):
         logger.setLevel(logging.INFO)
 
         # Initialize variables and HTTPS connection
-        tracker                           = 0
+        tracker                           = False
         use_proxy                         = 0
         proxy_type, proxy_url, proxy_port = None, None, None
         proxy_rdns                        = 0
@@ -119,10 +119,10 @@ class hibpCommand(StreamingCommand):
                     pass
 
         if api_key is not None and len(api_key) >= 32:
-            headers = {'User-Agent': 'splunk-app-for-hibp/2.2.0', 'hibp-api-key': '{0}'.format(api_key)}
+            headers = {'User-Agent': 'splunk-app-for-hibp/2.3.0', 'hibp-api-key': '{0}'.format(api_key)}
         else:
-            headers = {'User-Agent': 'splunk-app-for-hibp/2.2.0'}
-            logger.info("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail will not work.")
+            headers = {'User-Agent': 'splunk-app-for-hibp/2.3.0'}
+            logger.info("No valid haveibeenpwneed.com API key was provided via app's setup screen. mode=mail and mode=monitored will not work.")
 
         if use_proxy == 1:
             proxy_type = service.confs['sa_haveibeenpwned_settings']['proxy']['proxy_type']
@@ -194,7 +194,7 @@ class hibpCommand(StreamingCommand):
                 breach = []
 
                 # Always do a single request for all breaches only, independent of how many domains to check for
-                if tracker == 0:
+                if tracker == False:
                     try:
                         if not use_proxy == 1:
                             connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
@@ -225,8 +225,8 @@ class hibpCommand(StreamingCommand):
                             logger.error("HTTPS request failed: {0}".format(e))
                             raise RuntimeWarning("HTTPS request failed: {0}".format(e))
 
-                    tracker = 1
-                    connection.close()
+                    tracker = True
+                    connection.close() # TODO ???
 
                 if data is not None:
                     for entry in json.loads(data.decode('utf8')):
@@ -436,6 +436,147 @@ class hibpCommand(StreamingCommand):
                     if not use_proxy == 1:
                         connection.close()
                     sleep(60/rate_limit + 0.1) # Wait before next request to not exceed rate limit
+
+            
+            # Check for breaches of accounts which are part of a specific domain
+            if self.mode == "monitored":
+                # Only proceed if an API key was set up
+                if api_key is None or len(api_key) < 32:
+                    raise RuntimeWarning("Usage of mode=monitored requires a valid haveibeenpwneed.com API key to be provided via the app's setup screen.")
+
+                # Only proceed if specified domain is found to be configured on haveibeenpwned.com, add metadata
+                # TODO could reduce to a single request for all domains here
+                try:
+                    if not use_proxy == 1:
+                        connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+                    connection.request('GET', '/api/v3/subscribeddomains', headers=headers)
+                    response = connection.getresponse()
+                except Exception as e:
+                    connection.close()
+                    logger.error("HTTPS request failed: {0}".format(e))
+                    raise RuntimeWarning("HTTPS request failed: {0}".format(e))
+
+                if response.status == 200:
+                    data = response.read()
+
+                    if data == b'[]':
+                        #raise RuntimeWarning("Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]]))
+                        if self.output == "text":
+                            event['breach'] = "Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]])
+                        else:
+                            event['breach'] = {"Message": "Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]])}
+                        event['pwned_mail_addresses'] = "unknown"
+                        event['pwned_mail_addresses_exluding_spam'] = "unknown"
+                        tracker = True
+                    else:
+                        data = json.loads(data.decode('utf8'))
+                        domains = []
+
+                        for domain in data:
+                            domains.append(domain['DomainName'])
+                            if event[self.fieldnames[0]] == domain['DomainName']:
+                                #[{'DomainName': 'kuessner-consulting.de', 'PwnCount': 0, 'PwnCountExcludingSpamLists': 0, 'PwnCountExcludingSpamListsAtLastSubscriptionRenewal': None, 'NextSubscriptionRenewal': '2023-09-30T14:07:32'}]
+                                event['pwned_mail_addresses'] = "unknown" if domain['PwnCount'] == None else domain['PwnCount']
+                                event['pwned_mail_addresses_exluding_spam'] = "unknown" if domain['PwnCountExcludingSpamLists'] == None else domain['PwnCountExcludingSpamLists']
+                                break
+
+                        if event[self.fieldnames[0]] not in domains:
+                            #raise RuntimeWarning("Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]]))
+                            if self.output == "text":
+                                event['breach'] = "Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]])
+                            else:
+                                event['breach'] = {"Message": "Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]])}
+                            event['pwned_mail_addresses'] = "unknown"
+                            event['pwned_mail_addresses_exluding_spam'] = "unknown"
+                            tracker = True
+                elif response.status == 429:
+                    if self.output == "text":
+                        event['breach'] = "API rate limit exceeded, no data could be retrieved."
+                    else:
+                        event['breach'] = {"Message": "API rate limit exceeded, no data could be retrieved."}
+                    event['pwned_mail_addresses'] = "unknown"
+                    event['pwned_mail_addresses_exluding_spam'] = "unknown"
+                    tracker = True
+                else:
+                    #raise RuntimeWarning("Specified domain {0} was not found in your haveibeenpwned.com account. Please make sure to have it configured as monitored domain in your haveibeenpwned.com account.".format(event[self.fieldnames[0]]))
+                    if self.output == "text":
+                        event['breach'] = "Received {0} HTTP response code from API. Please make sure to have monitored domains configured in your haveibeenpwned.com account.".format(response.status)
+                    else:
+                        event['breach'] = {"Message": "Received {0} HTTP response code from API. Please make sure to have monitored domains configured in your haveibeenpwned.com account.".format(response.status)}
+                    event['pwned_mail_addresses'] = "unknown"
+                    event['pwned_mail_addresses_exluding_spam'] = "unknown"
+                    tracker = True
+
+                # TODO ???
+                if not use_proxy == 1:
+                    connection.close()
+
+                # Check for account breaches
+                if tracker == False:
+                    try:
+                        if not use_proxy == 1:
+                            connection = http_client.HTTPSConnection('haveibeenpwned.com', 443)
+                        connection.request('GET', '/api/v3/breacheddomain/{0}'.format(event[self.fieldnames[0]]), headers=headers)
+                        response = connection.getresponse()
+                    except Exception as e:
+                        connection.close()
+                        logger.error("HTTPS request failed: {0}".format(e))
+                        raise RuntimeWarning("HTTPS request failed: {0}".format(e))
+
+                    """if event[self.fieldnames[0]] == "kuessner-consulting.de":
+                        data = b'{"alias1": ["Adobe"],"alias2": ["Adobe","Gawker","Stratfor"],"alias3": ["AshleyMadison"]}'
+
+                        # TODO at this point we should discard all mails which were part of breaches earlier than threshold
+                        # need to retrieve breach dates here then
+
+                        if self.output == "text":
+                            data = json.loads(data.decode('utf8'))
+                            event['breach'] = ""
+                            for entry in data:
+                                event['breach'] += "{0}.{1} is part of the following breaches: ".format(entry, event[self.fieldnames[0]])
+                                for item in data[entry]:
+                                    event['breach'] += "{0}, ".format(item)
+                                event['breach'] += "\r\n"
+                        else:
+                            event['breach'] = data.decode('utf8')"""
+
+                    if response.status == 200:
+                        data = response.read()
+
+                        # TODO at this point we should discard all mails which were part of breaches earlier than threshold
+                        # need to retrieve breach dates here then
+
+                        if self.output == "text":
+                            data = json.loads(data.decode('utf8'))
+                            event['breach'] = ""
+                            for entry in data:
+                                event['breach'] += "{0}.{1} is part of the following breaches: ".format(entry, event[self.fieldnames[0]])
+                                for item in data[entry]:
+                                    event['breach'] += "{0}, ".format(item)
+                                event['breach'] += "\r\n"
+                        else:
+                            event['breach'] = data.decode('utf8')
+
+                    elif response.status == 404:
+                        if self.output == "text":
+                            event['breach'] = "No pwned mail addresses reported for given domain."
+                        else:
+                            event['breach'] = {"Message": "No pwned mail addresses reported for given domain."}
+                    # TODO determine what the rate limit actually is, as the API documentation is quite vague here
+                    # then proceed appropriately
+                    elif response.status == 429:
+                        if self.output == "text":
+                            event['breach'] = "API rate limit exceeded, no data could be retrieved."
+                        else:
+                            event['breach'] = {"Message": "API rate limit exceeded, no data could be retrieved."}
+                    else:
+                        if self.output == "text":
+                            event['breach'] = "Received {0} HTTP response code from API, no breach info could be retrieved.".format(response.status)
+                        else:
+                            event['breach'] = {"Message": "Received {0} HTTP response code from API, no breach info could be retrieved.".format(response.status)}
+                    
+                    if not use_proxy == 1:
+                        connection.close()
 
             yield event
 
