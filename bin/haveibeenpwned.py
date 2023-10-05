@@ -4,7 +4,7 @@
     Implementation of the custom Splunk> search command "haveibeenpwned" used for querying haveibeenpwned.com for leaks affecting provided mail adresses or domains.
 
     Author: Harun Kuessner
-    Version: 2.2.0
+    Version: 2.2.5
     License: http://www.apache.org/licenses/LICENSE-2.0
 """
 

@@ -11,7 +11,7 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.0.2 and 8.2.
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.2.3
+* Version: 2.2.5
 
 
 ## Installation & Updating
@@ -73,14 +73,21 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
+### v2.2.5
+
+* Ensured future cloud compatibility (again)
+
+### v2.2.4
+
+* Ensured future cloud compatibility
+
 ### v2.2.3
 
 * Updated Splunk Python SDK to v1.7.3, fixed a bug which caused proxy connections to hang
 
-
 ### v2.2.2
 
-* Fixed metadata issue breaking Splunk Cloud compatibility
+* Fixed metadata issue causing Splunk Cloud incompatibility
 
 ### v2.2.0
 
