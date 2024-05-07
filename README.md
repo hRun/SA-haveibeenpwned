@@ -11,7 +11,7 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.0.2 and 8.2.
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.2.5
+* Version: 2.2.6
 
 
 ## Installation & Updating
@@ -73,21 +73,10 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
-### v2.2.5
-
-* Ensured future cloud compatibility (again)
-
-### v2.2.4
+### v2.2.2 - v2.2.6
 
 * Ensured future cloud compatibility
-
-### v2.2.3
-
-* Updated Splunk Python SDK to v1.7.3, fixed a bug which caused proxy connections to hang
-
-### v2.2.2
-
-* Fixed metadata issue causing Splunk Cloud incompatibility
+* Updated Splunk Python SDK
 
 ### v2.2.0
 
@@ -154,6 +143,7 @@ Check a domain for breaches during the last month and output as json
 
 ## TODO / Known Issues
 
+* Update to Splunk Python SDK 2.x (currently has bugs)
 * Potentially add a mode to query the passwords API. As password hashes should not be stored in Splunk this should not be a valid use case.
 * Currently only HTTP(S) proxies are supported and only Basic Authentication. Add support for SOCKS proxies and NTLM authentication.
 
