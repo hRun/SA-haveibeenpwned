@@ -11,7 +11,7 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.0.2 and 8.2.
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.2.6
+* Version: 2.2.7
 
 
 ## Installation & Updating
@@ -73,7 +73,7 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
-### v2.2.2 - v2.2.6
+### v2.2.2 - v2.2.7
 
 * Ensured future cloud compatibility
 * Updated Splunk Python SDK
