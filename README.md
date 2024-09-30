@@ -6,12 +6,12 @@ Please respect people's privacy and adhere to the service's acceptable use (http
 
 I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
-Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.0.2 and 8.2.3 on Windows, Linux and Splunk Cloud.
+Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.x on Windows and Linux (64-bit).
 
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.2.7
+* Version: 2.3.0
 
 
 ## Installation & Updating
@@ -73,7 +73,7 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
-### v2.2.2 - v2.2.7
+### v2.2.2 - v2.3.0
 
 * Ensured future cloud compatibility
 * Updated Splunk Python SDK
