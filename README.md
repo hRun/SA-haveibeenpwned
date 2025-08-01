@@ -6,12 +6,12 @@ Please respect people's privacy and adhere to the service's acceptable use (http
 
 I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
-Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.x on Windows and Linux (64-bit).
+Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 10.0 on Windows and Linux (64-bit).
 
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.3.0
+* Version: 2.3.2
 
 
 ## Installation & Updating
@@ -73,7 +73,7 @@ Check a domain for breaches during the last month and output as json
 
 ## History
 
-### v2.2.2 - v2.3.0
+### v2.2.2 - v2.3.x
 
 * Ensured future cloud compatibility
 * Updated Splunk Python SDK
@@ -116,30 +116,9 @@ Check a domain for breaches during the last month and output as json
 ### v2.0.0
 
 * Implemented Splunk Cloud compatibility by relying on Splunk Add-On Builder for the add-on setup/configuration. Thanks to lukemonahan!
-
 * Improved conectivity tests, proxy and error handling
-
 * Added custom role for non-privileged users
-
 * Added add-on logo
-
-### v1.2.2
-
-* Fixed a bug where the Splunk search would fail if a paste was found for an account but does not return a title or date
-
-* Add option to control whether to report account pastes or not or just the ones with a timestamp
-
-### v1.2.1
-
-* Better connection state handling and URL encoding
-
-* Updated to Splunklib 1.6.14
-
-### v1.2.0
-
-* Overall enhancements and bug fixes
-
-* Implemented better sanity checks and error handling
 
 ## TODO / Known Issues
 

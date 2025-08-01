@@ -1,53 +1,56 @@
 {
-  "schemaVersion": "1.0.0",
-  "info": {
-    "title": "Haveibeenpwned Add-on for Splunk",
-    "id": {
-      "group": null,
-      "name": "SA-haveibeenpwned",
-      "version": "2.3.0"
+    "schemaVersion": "2.0.0",
+    "info": {
+        "title": "Haveibeenpwned Add-on for Splunk",
+        "id": {
+            "group": null,
+            "name": "SA-haveibeenpwned",
+            "version": "2.3.2"
+        },
+        "author": [
+            {
+                "name": "Harun Kuessner",
+                "email": null,
+                "company": null
+            }
+        ],
+        "releaseDate": null,
+        "description": "Custom search command to query haveibeenpwned.com API for known breaches of your domains or mail addresses.",
+        "classification": {
+            "intendedAudience": null,
+            "categories": [],
+            "developmentStatus": null
+        },
+        "commonInformationModels": null,
+        "license": {
+            "name": null,
+            "text": null,
+            "uri": null
+        },
+        "privacyPolicy": {
+            "name": null,
+            "text": null,
+            "uri": null
+        },
+        "releaseNotes": {
+            "name": null,
+            "text": null,
+            "uri": null
+        }
     },
-    "author": [
-      {
-        "name": "Harun Kuessner",
-        "email": null,
-        "company": null
-      }
+    "dependencies": {},
+    "tasks": [],
+    "inputGroups": {},
+    "incompatibleApps": {},
+    "platformRequirements": {
+        "splunk": {
+            "Enterprise": "*"
+        }
+    },
+    "supportedDeployments": [
+        "*"
     ],
-    "releaseDate": null,
-    "description": "Custom search command to query haveibeenpwned.com API for known breaches of your domains or mail addresses.",
-    "classification": {
-      "intendedAudience": null,
-      "categories": [],
-      "developmentStatus": null
-    },
-    "commonInformationModels": null,
-    "license": {
-      "name": null,
-      "text": null,
-      "uri": null
-    },
-    "privacyPolicy": {
-      "name": null,
-      "text": null,
-      "uri": null
-    },
-    "releaseNotes": {
-      "name": null,
-      "text": null,
-      "uri": null
-    }
-  },
-  "dependencies": {
-  },
-  "tasks": [],
-  "inputGroups": {
-  },
-  "incompatibleApps": {
-  },
-  "platformRequirements": {
-    "splunk": {
-      "Enterprise": "*"
-    }
-  }
+    "targetWorkloads": [
+        "*"
+    ]
 }
