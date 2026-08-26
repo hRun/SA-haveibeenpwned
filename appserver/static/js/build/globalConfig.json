@@ -2,9 +2,10 @@
     "meta": {
         "name": "SA-haveibeenpwned",
         "displayName": "Haveibeenpwned Add-on for Splunk",
-        "version": "2.3.2",
+        "version": "2.3.4",
         "restRoot": "SA_haveibeenpwned",
-        "schemaVersion": "0.0.3"
+        "schemaVersion": "0.0.8",
+        "_uccVersion": "5.48.0"
     },
     "pages": {
         "configuration": {

@@ -6,12 +6,12 @@ Please respect people's privacy and adhere to the service's acceptable use (http
 
 I was unsatisfied with the publicly available Splunk add-ons already providing this functionality as they either didn't allow control over what and how is queried for or didn't format the output to my wishes. So I came up with my own Splunk add-on implementing these missing features.
 
-Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 10.0 on Windows and Linux (64-bit).
+Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.x on Windows and Linux (64-bit).
 
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.3.2
+* Version: 2.3.4
 
 
 ## Installation & Updating
