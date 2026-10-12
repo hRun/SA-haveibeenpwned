@@ -11,7 +11,7 @@ Cross-compatible with Python 2 and 3. Tested on Splunk Enterprise 9.x on Windows
 Licensed under http://www.apache.org/licenses/LICENSE-2.0.
 
 * Authors: Harun Kuessner
-* Version: 2.3.4
+* Version: 2.3.5
 
 
 ## Installation & Updating
